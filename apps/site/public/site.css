@@ -340,3 +340,48 @@ kbd { font: 700 0.8em/1 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-seri
   .s-note { margin-left: 12px; max-width: calc(100% - 24px); }
 }
 
+/* Motion. Only with html.story (set by site.js when motion is fine); .s-now finishes a beat at once. */
+.s-type > span { transition: opacity 0s calc(var(--d, 0ms) + var(--i) * 28ms); }
+html.story :is([data-beat], [data-at]):not(.play) .s-type > span { opacity: 0; }
+.hero-title > .s-pin { transition: opacity 0.2s 0.6s, translate 0.3s 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), scale 0.3s 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.s-outline { transition: opacity 0.35s 0.8s, scale 0.35s 0.8s; }
+.s-hero-thread { transition: opacity 0.3s 1s, translate 0.3s 1s; }
+.s-hero-reply { transition: opacity 0.3s 4.4s, translate 0.3s 4.4s; }
+.s-presence { transition: opacity 0.3s 4.8s, translate 0.3s 4.8s; }
+html.story .hero:not(.play) .hero-title > .s-pin { opacity: 0; translate: 0 -12px; scale: 0.6; }
+html.story .hero:not(.play) .s-outline { opacity: 0; scale: 1.03; }
+html.story .hero:not(.play) :is(.s-hero-thread, .s-presence) { opacity: 0; translate: 0 12px; }
+html.story .hero:not(.play) .s-hero-reply { opacity: 0; translate: 0 6px; }
+html.story .hero.play .s-typing { animation: s-typing 1.3s 3.1s both; }
+html.story .hero.play .s-dots i { animation: s-dot 0.6s 3.1s 2; }
+html.story .hero.play .s-dots i:nth-child(2) { animation-delay: 3.25s; }
+html.story .hero.play .s-dots i:nth-child(3) { animation-delay: 3.4s; }
+@keyframes s-typing {
+  0%, 100% { opacity: 0; }
+  15%, 85% { opacity: 1; }
+}
+@keyframes s-dot {
+  50% { translate: 0 -3px; opacity: 0.5; }
+}
+.s-line { --l: 0; transition: opacity 0.12s calc(0.35s + var(--l) * 80ms); }
+.s-line:nth-child(3) { --l: 1; }
+.s-line:nth-child(4) { --l: 2; }
+.s-line:nth-child(5) { --l: 3; }
+.s-line:nth-child(6) { --l: 4; }
+.s-agent-reply { transition: opacity 0.3s 0.95s, translate 0.3s 0.95s; }
+html.story .s-agent:not(.play) :is(.s-line, .s-agent-reply) { opacity: 0; }
+html.story .s-agent:not(.play) .s-agent-reply { translate: 0 -10px; }
+.s-shop .s-pin, .s-setup > .s-pin { transition: opacity 0.2s, translate 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), scale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.s-preview { transition: opacity 0.25s 0.15s, scale 0.25s 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), translate 0.25s 0.15s; }
+html.story .s-shop .s-pin:not(.on), html.story .s-setup:not(.play) > .s-pin { opacity: 0; translate: 0 -12px; scale: 0.6; }
+html.story .role:not(.on) > .s-pin { border-color: var(--line-strong); background: var(--paper); color: var(--muted); box-shadow: none; }
+html.story .role:not(.on) .s-preview { opacity: 0; scale: 0.92; translate: 0 6px; }
+.s-ask { transition: opacity 0.2s, translate 0.5s cubic-bezier(0.3, 1.9, 0.6, 1); }
+.s-faq { transition: opacity 0.3s 0.5s, translate 0.3s 0.5s; }
+.s-faq-answer { transition: opacity 0.3s 1.5s, translate 0.3s 1.5s; }
+.s-note { transition: opacity 0.3s 0.4s, translate 0.3s 0.4s; }
+html.story .s-team-plan:not(.play) .s-ask { opacity: 0; translate: 0 -16px; }
+html.story .s-team-plan:not(.play) .s-faq { opacity: 0; translate: 0 10px; }
+html.story .s-team-plan:not(.play) .s-faq-answer { opacity: 0; translate: 0 6px; }
+html.story .s-setup:not(.play) .s-note { opacity: 0; translate: 0 -6px; }
+.s-now, .s-now * { transition: none !important; animation: none !important; }
