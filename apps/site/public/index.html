@@ -26,7 +26,7 @@
     <link rel="describedby" href="/llms.txt" />
     <script src="/site.js"></script>
   </head>
-  <body>
+  <body class="home">
     <header class="wrap nav">
       <a class="brand" href="/"><img src="/brand/logo-light.svg" alt="OpenParley" width="165" height="40" /></a>
       <a href="#try">Try it</a>
@@ -36,8 +36,38 @@
     </header>
 
     <main>
-      <div class="wrap hero">
-        <h1>Stop describing. <em>Start pointing.</em></h1>
+      <div class="wrap hero" data-beat>
+        <div class="hero-title">
+          <h1>Stop describing. <em>Start pointing.</em></h1>
+          <span class="s-outline" aria-hidden="true"></span>
+          <span class="s-pin" aria-hidden="true">1</span>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="s-blob"></div>
+          <div class="s-sun"></div>
+          <div class="s-card s-hero-thread">
+            <div class="s-card-head"><span class="s-sel">h1 · Stop describing.</span><span class="s-chip highlight">openparley.dev</span></div>
+            <div class="s-comment">
+              <span class="s-av av-mila">MV</span>
+              <div>
+                <p class="s-meta"><b>Mila</b> Product · just now</p>
+                <p class="s-type" style="--d: 1300ms">Love it. Could the hero show it working, instead of telling?</p>
+              </div>
+            </div>
+            <div class="s-slot">
+              <div class="s-comment s-hero-reply">
+                <span class="s-av agent">CC</span>
+                <div>
+                  <p class="s-meta"><b>Claude Code</b> <span class="s-chip">agent</span> now</p>
+                  <p>On it. Scroll down: every section now demonstrates itself.</p>
+                </div>
+              </div>
+              <div class="s-typing"><span class="s-av agent">CC</span><span class="s-dots"><i></i><i></i><i></i></span>Claude Code is replying…</div>
+            </div>
+            <div class="s-card-foot"><span class="s-field">Reply…</span><span class="s-btn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg>Resolve</span></div>
+          </div>
+          <div class="s-presence"><span class="s-av av-mila">MV</span><span class="s-av av-sanne">SV</span><span class="s-av av-joris">JK</span><span class="s-av agent">CC</span>3 people and 1 agent on this page</div>
+        </div>
         <p>
           Comment on any element of your live site. Teammates reply in the thread; your coding agent reads it, ships the fix and replies too.
         </p>
@@ -52,18 +82,68 @@
         <div class="wrap">
           <h2>Point at it. <em>Your agent fixes it.</em></h2>
           <p>No more “the second button in the header, no, the other one”. The thread sits on the element, so everyone, people and agents, knows exactly what you mean.</p>
-          <div class="steps">
-            <div class="step">
-              <h3>Point</h3>
-              <p>Press <kbd>C</kbd>, click the element and write what's wrong. The thread is pinned to it, on the page and environment where you saw it.</p>
+          <div class="how">
+            <div class="s-demo" aria-hidden="true">
+              <div class="s-browser">
+                <div class="s-bar"><i></i><i></i><i></i><span class="s-url">staging.fieldnotes.shop/notebook</span></div>
+                <div class="s-page">
+                  <div class="s-product">
+                    <div class="s-photo"></div>
+                    <div class="s-info">
+                      <b class="s-title">Field Notebook, dot grid</b>
+                      <span class="s-cost">€24 <s>€29</s></span>
+                      <span class="s-cart">Add to cart<span class="s-pin s-cart-pin"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7"/></svg><b class="s-face open">1</b><b class="s-face draft"></b></span></span>
+                    </div>
+                  </div>
+                  <div class="s-panel">
+                    <div class="s-card s-composer" data-at="1">
+                      <div class="s-card-head"><span class="s-sel">button · Add to cart</span><span class="s-chip highlight">staging</span></div>
+                      <p class="s-input"><span class="s-type" style="--d: 350ms">On mobile Safari this wraps onto two lines. Can it stay on one?</span></p>
+                      <div class="s-card-foot"><span class="s-who">Sanne · Design</span><span class="s-btn ghost">Cancel</span><span class="s-btn">Post</span></div>
+                    </div>
+                    <div class="s-agent" data-at="2">
+                      <div class="s-term">
+                        <p class="s-term-head">claude · fieldnotes-shop</p>
+                        <p class="s-line"><span class="c">› openparley list_threads</span></p>
+                        <p class="s-line"><span class="c">› get_thread op_42</span></p>
+                        <p class="s-line">  button[data-testid="add-to-cart"]</p>
+                        <p class="s-line"><span class="e">✎ src/AddToCart.tsx</span> +2 −0</p>
+                        <p class="s-line"><span class="c">› openparley reply op_42</span></p>
+                      </div>
+                      <div class="s-bubble s-agent-reply">
+                        <span class="s-av agent">CC</span>
+                        <div><p class="s-meta"><b>Claude Code</b> <span class="s-chip">agent</span></p><p>Fixed in #142. Live on staging, have a look.</p></div>
+                      </div>
+                    </div>
+                    <div class="s-card s-resolved">
+                      <div class="s-card-head"><span class="s-sel">button · Add to cart</span><span class="s-chip resolved">Resolved</span></div>
+                      <div class="s-comment">
+                        <span class="s-av agent">CC</span>
+                        <div><p class="s-meta"><b>Claude Code</b> <span class="s-chip">agent</span> 12m</p><p>Fixed in #142: nowrap plus a min-width.</p></div>
+                      </div>
+                      <div class="s-comment">
+                        <span class="s-av av-sanne">SV</span>
+                        <div><p class="s-meta"><b>Sanne</b> Design · now</p><p>Checked on my phone. Perfect.</p></div>
+                      </div>
+                      <div class="s-card-foot"><span class="s-who">Resolved by Sanne</span><span class="s-link">Reopen</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="step">
-              <h3>Your agent picks it up</h3>
-              <p>Over MCP, Claude Code or Cursor gets the page, the element's selector and text, and the conversation. It finds the code and makes the change.</p>
-            </div>
-            <div class="step">
-              <h3>Check it where it lives</h3>
-              <p>The agent replies in the thread. Look at the element itself, then resolve it, or reopen it with a note.</p>
+            <div class="steps">
+              <div class="step">
+                <h3>Point</h3>
+                <p>Press <kbd>C</kbd>, click the element and write what's wrong. The thread is pinned to it, on the page and environment where you saw it.</p>
+              </div>
+              <div class="step">
+                <h3>Your agent picks it up</h3>
+                <p>Over MCP, Claude Code or Cursor gets the page, the element's selector and text, and the conversation. It finds the code and makes the change.</p>
+              </div>
+              <div class="step">
+                <h3>Check it where it lives</h3>
+                <p>The agent replies in the thread. Look at the element itself, then resolve it, or reopen it with a note.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -73,22 +153,47 @@
         <div class="wrap">
           <h2>Your whole product team, <em>on the same element</em></h2>
           <p>Everyone who reviews the product points at the real thing instead of screenshots, mockups and tickets. Their feedback lands where the developer's agent can act on it.</p>
-          <div class="cards">
-            <div class="card">
-              <h3>Product</h3>
-              <p>Point at the copy or the flow that's wrong, on the live product, and follow it to done.</p>
+          <div class="team">
+            <div class="s-shop" aria-hidden="true">
+              <div class="s-bar"><i></i><i></i><i></i><span class="s-url">fieldnotes.shop/notebook</span></div>
+              <div class="s-shop-page">
+                <div class="s-photo"><span class="s-pin" data-n="2">2</span></div>
+                <div class="s-shop-info">
+                  <b class="s-title"><span class="s-target">Field Notebook, dot grid<span class="s-pin" data-n="1">1</span></span></b>
+                  <span class="s-cost"><span class="s-target">€24 <s>€29</s><span class="s-pin agent" data-n="4">4</span></span></span>
+                  <p class="s-desc">192 pages of 100 g/m² paper that takes fountain pen ink without bleeding.</p>
+                  <span class="s-label">Postcode</span>
+                  <span class="s-box error">2000 Antwerpen<span class="s-pin" data-n="3">3</span></span>
+                  <span class="s-error">Enter a valid postcode</span>
+                  <span class="s-cart">Add to cart</span>
+                </div>
+              </div>
             </div>
-            <div class="card">
-              <h3>Design &amp; UX</h3>
-              <p>Spacing, colour and states on the real build, not the mockup. Check the fix on the element itself.</p>
-            </div>
-            <div class="card">
-              <h3>QA</h3>
-              <p>A bug pinned to the element, in the environment where you saw it: production, staging or a preview.</p>
-            </div>
-            <div class="card">
-              <h3>Development</h3>
-              <p>Your agent works through the threads and replies when it's done. Its replies are marked as the agent's.</p>
+            <div class="roles">
+              <div class="role" data-n="1">
+                <span class="s-pin" aria-hidden="true">1</span>
+                <h3>Product</h3>
+                <p>Point at the copy or the flow that's wrong, on the live product, and follow it to done.</p>
+                <div class="s-bubble s-preview" aria-hidden="true"><span class="s-av av-mila">MV</span><div><p class="s-meta"><b>Mila · Product</b></p><p>Rename it to “Field Notebook A5”?</p></div></div>
+              </div>
+              <div class="role" data-n="2">
+                <span class="s-pin" aria-hidden="true">2</span>
+                <h3>Design &amp; UX</h3>
+                <p>Spacing, colour and states on the real build, not the mockup. Check the fix on the element itself.</p>
+                <div class="s-bubble s-preview" aria-hidden="true"><span class="s-av av-sanne">SV</span><div><p class="s-meta"><b>Sanne · Design</b></p><p>Corners 12 px, like the cards.</p></div></div>
+              </div>
+              <div class="role" data-n="3">
+                <span class="s-pin" aria-hidden="true">3</span>
+                <h3>QA</h3>
+                <p>A bug pinned to the element, in the environment where you saw it: production, staging or a preview.</p>
+                <div class="s-bubble s-preview" aria-hidden="true"><span class="s-av av-joris">JK</span><div><p class="s-meta"><b>Joris · QA</b> <span class="s-chip">staging</span></p><p>Belgian postcodes get rejected.</p></div></div>
+              </div>
+              <div class="role" data-n="4">
+                <span class="s-pin agent" aria-hidden="true">4</span>
+                <h3>Development</h3>
+                <p>Your agent works through the threads and replies when it's done. Its replies are marked as the agent's.</p>
+                <div class="s-bubble s-preview" aria-hidden="true"><span class="s-av agent">CC</span><div><p class="s-meta"><b>Claude Code · agent</b></p><p>Price now comes from the catalogue API.</p></div></div>
+              </div>
             </div>
           </div>
         </div>
@@ -131,8 +236,12 @@
         <div class="wrap">
           <h2>Set up <em>in two steps</em></h2>
           <p>Add the script tag from your workspace to your site. Only signed-in teammates load OpenParley; every other visitor downloads a 1 KB loader.</p>
-          <pre><code>&lt;script src="https://you.openparley.dev/openparley.js"
+          <div class="s-setup" data-beat>
+            <pre><code>&lt;script src="https://you.openparley.dev/openparley.js"
         data-project="…" data-launcher="members" defer&gt;&lt;/script&gt;</code></pre>
+            <span class="s-pin" aria-hidden="true">5</span>
+            <div class="s-bubble s-note" aria-hidden="true"><span class="s-av av-daan">DB</span><div><p class="s-meta"><b>Daan · Development</b></p><p>Visitors get a 1 KB loader. Only signed-in teammates load the rest.</p></div></div>
+          </div>
           <p>Then connect your coding agent. It signs in through your browser the first time.</p>
           <pre><code>claude mcp add --transport http openparley https://you.openparley.dev/mcp</code></pre>
           <p>
@@ -153,10 +262,21 @@
               <p>For you and your coding agents. Unlimited threads and projects.</p>
               <a class="button" href="https://cloud.openparley.dev/signup?plan=free">Start free</a>
             </div>
-            <div class="card">
+            <div class="card s-team-plan" data-beat>
               <h3>Team</h3>
-              <p class="amount">$19<span>/month</span></p>
+              <p class="amount">$19<span>/month</span><span class="s-pin s-ask" aria-hidden="true">?</span></p>
               <p>For your whole product team: unlimited members, threads and projects. First 31 days free.</p>
+              <div class="s-card s-faq" aria-hidden="true">
+                <div class="s-card-head"><span class="s-sel">p.amount · $19/month</span></div>
+                <div class="s-comment">
+                  <span class="s-av av-joris">JK</span>
+                  <div><p class="s-meta"><b>Joris</b> QA · 2d</p><p>Is that per seat?</p></div>
+                </div>
+                <div class="s-comment s-faq-answer">
+                  <img class="s-av" src="/brand/icon.svg" alt="" width="24" height="24" />
+                  <div><p class="s-meta"><b>OpenParley</b> <span class="s-chip">team</span> 2d</p><p>No: per workspace. Unlimited members, and the first 31 days are free.</p></div>
+                </div>
+              </div>
               <a class="button" href="https://cloud.openparley.dev/signup?plan=team">Start a trial</a>
             </div>
             <div class="card">
