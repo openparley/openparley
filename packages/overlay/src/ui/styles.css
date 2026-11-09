@@ -337,6 +337,18 @@ textarea.field { resize: none; min-height: 64px; max-height: 200px; }
 
 .card[data-docked] { left: auto; top: auto; right: 16px; bottom: 68px; transform: none !important; }
 
+/* Touch: no keyboard hints or hover-only controls; 44px hit areas without bigger buttons. */
+@media (hover: none) {
+  .kbd { display: none; }
+  .comment-delete { opacity: 1; }
+}
+@media (pointer: coarse) {
+  .icon-btn, .btn { position: relative; }
+  .pin::after, .icon-btn::after, .btn::after { content: ''; position: absolute; inset: calc(50% - 22px); }
+  /* iOS zooms the page into any field under 16px when it gets focus. */
+  .field { font-size: 16px; }
+}
+
 /* Bottom sheet. The breakpoint is SHEET_QUERY in Floating.tsx; --op-keyboard is set there too. */
 @media (max-width: 600px) {
   .card, .card[data-docked] {
