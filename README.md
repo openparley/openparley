@@ -48,7 +48,8 @@ Or with Docker behind your reverse proxy (data in the `openparley` volume):
 
 ```bash
 docker build -f apps/sync/Dockerfile -t openparley-sync .
-docker run -d -p 127.0.0.1:3001:3001 -v openparley:/data -e PUBLIC_URL=https://parley.example.com -e TRUST_PROXY=1 openparley-sync
+docker run -d -p 127.0.0.1:3001:3001 -v openparley:/data \
+  -e PUBLIC_URL=https://parley.example.com -e TRUST_PROXY=1 openparley-sync
 docker logs <container>   # the setup link
 ```
 
