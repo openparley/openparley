@@ -213,9 +213,24 @@ kbd { font: 700 0.8em/1 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-seri
   .s-hero-thread .s-slot { margin-top: 10px; }
 }
 
-/* Beats 2-4: one browser frame; the step in view sets data-step on .how (none = the last step). */
-.how { margin-top: 32px; }
-.steps { counter-reset: step; }
+/* Beats 2-4: one browser frame beside three steps. story.js sets data-step on .how (none = the last
+   step) and rotates the steps; the active step's timer bar is the clock, so pausing is plain CSS. */
+.how { margin-top: 32px; display: grid; gap: 24px; align-items: center; }
+.steps { counter-reset: step; display: grid; gap: 8px; }
+.step { position: relative; padding: 16px 20px 18px; border: 1px solid transparent; border-radius: 16px; transition: background 0.2s, border-color 0.2s, box-shadow 0.2s; }
+.step.on { background: var(--surface); border-color: var(--line); box-shadow: var(--raised); }
+.step-pick { all: unset; }
+.how[data-ready] .step-pick { cursor: pointer; }
+.how[data-ready] .step-pick::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.step-pick:focus-visible::after { outline: 2px solid var(--accent); outline-offset: 2px; }
+.how[data-ready] .step:not(.on):hover { background: rgb(255 255 255 / 0.5); }
+.step-time { position: absolute; left: 20px; right: 20px; bottom: 6px; height: 2px; border-radius: 1px; background: var(--accent); transform-origin: left; scale: 0 1; opacity: 0; }
+.how.auto .step.on .step-time { opacity: 0.6; animation: step-time var(--dwell, 6s) linear forwards; }
+.how.auto:is(:hover, :focus-within, :not(.inview)) .step.on .step-time { animation-play-state: paused; }
+.step:nth-child(3) { --dwell: 5s; }
+@keyframes step-time {
+  to { scale: 1 1; }
+}
 .step::before { counter-increment: step; content: counter(step); display: inline-grid; place-items: center; width: 28px; height: 28px; margin-bottom: 8px; border: 2px solid #fff; border-radius: 14px 14px 14px 2px; background: var(--highlight); color: var(--ink); font-size: 13px; font-weight: 700; box-shadow: var(--shadow-pin); }
 .step:nth-child(2)::before { background: var(--ink); color: #fff; }
 .step:nth-child(3)::before { content: '✓'; background: var(--resolved); color: #fff; }
@@ -247,19 +262,15 @@ kbd { font: 700 0.8em/1 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-seri
 .how[data-step='0'] .s-cart-pin { opacity: 0; scale: 0.6; }
 .how[data-step='1'] .s-face.draft, .how[data-step='2'] .s-face.open { opacity: 1; }
 @media (min-width: 900px) {
-  .how { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); column-gap: 64px; align-items: start; }
-  .s-demo { position: sticky; top: calc(50vh - 200px); grid-area: 1 / 2; }
-  .steps { grid-area: 1 / 1; padding-block: 10vh 16vh; }
-  .step { min-height: 48vh; }
-  .step:last-child { min-height: 0; }
+  .how { grid-template-columns: minmax(0, 360px) minmax(0, 1fr); column-gap: 48px; }
+  .s-demo { grid-area: 1 / 2; }
+  .steps { grid-area: 1 / 1; }
 }
 @media (min-width: 900px) and (max-width: 1099px) {
   .how { column-gap: 40px; }
   .s-page { grid-template-columns: 150px minmax(0, 1fr); gap: 16px; padding: 16px; }
 }
 @media (max-width: 899px) {
-  /* Stacked: the frame sticks to the top and the steps scroll underneath it. */
-  .s-demo { position: sticky; top: 0; z-index: 2; margin-inline: -24px; padding: 10px 24px 14px; background: var(--paper); }
   .s-browser { max-width: 560px; margin-inline: auto; }
   .s-page { grid-template-columns: 1fr; gap: 12px; padding: 12px; }
   .s-product { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 12px; padding: 10px; }
@@ -267,8 +278,6 @@ kbd { font: 700 0.8em/1 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-seri
   .s-info { margin-top: 0; }
   .s-card { padding: 10px 12px; }
   .s-term { padding: 10px 12px; }
-  .step { min-height: 40vh; padding-top: 24px; }
-  .step:last-child { min-height: 52vh; }
 }
 @media (max-width: 600px) {
   .s-demo .s-bar, .s-term .s-term-head { display: none; }

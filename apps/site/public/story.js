@@ -2,7 +2,59 @@
 // (start states) before the first paint, and only when motion is fine. See "Scroll story" in site.css.
 (() => {
   const root = document.documentElement;
-  if (!root.classList.contains('story')) return;
+  const motion = root.classList.contains('story');
+  const how = document.querySelector('.how');
+
+  // How it works: the steps take turns in the frame until the visitor picks one. The active step's
+  // timer bar (a CSS animation) is the clock, so hover, focus and being off screen pause it in CSS.
+  if (how) {
+    const steps = [...how.querySelectorAll('.step')];
+    let current = 0;
+    const show = (n) => {
+      current = n;
+      how.dataset.step = n;
+      steps.forEach((step, i) => {
+        step.classList.toggle('on', i === n - 1);
+        step.querySelector('.step-pick').toggleAttribute('aria-current', i === n - 1);
+      });
+      if (!motion) return;
+      for (const el of how.querySelectorAll(`[data-at="${n}"]`)) {
+        el.classList.add('s-now');
+        el.classList.remove('play');
+        void el.offsetWidth;
+        el.classList.remove('s-now');
+        el.classList.add('play');
+      }
+    };
+    steps.forEach((step, i) => {
+      step.append(Object.assign(document.createElement('span'), { className: 'step-time' }));
+      step.querySelector('.step-pick').addEventListener('click', () => {
+        how.classList.remove('auto');
+        show(i + 1);
+      });
+    });
+    how.dataset.ready = '';
+    if (!motion) {
+      // Reduced motion: the frame keeps its end state (no data-step) until a step is picked.
+      steps.at(-1).classList.add('on');
+      steps.at(-1).querySelector('.step-pick').setAttribute('aria-current', '');
+    } else {
+      show(0);
+      how.classList.add('auto');
+      how.addEventListener('animationend', (event) => {
+        if (event.animationName === 'step-time' && how.classList.contains('auto')) show((current % steps.length) + 1);
+      });
+      new IntersectionObserver(
+        ([entry]) => {
+          how.classList.toggle('inview', entry.isIntersecting);
+          if (entry.isIntersecting && current === 0) show(1);
+        },
+        { threshold: 0.4 },
+      ).observe(how);
+    }
+  }
+
+  if (!motion) return;
   root.dataset.story = 'on';
 
   // Typing: one span per character, which CSS reveals in turn. The text itself never changes, so nothing reflows.
@@ -54,18 +106,6 @@
     { threshold: [0, 0.3] },
   );
   for (const el of document.querySelectorAll('[data-beat]')) beats.observe(el);
-
-  // How it works: the step at the line sets the frame's state; each state's own animation plays once.
-  const how = document.querySelector('.how');
-  if (how) {
-    const show = (step) => {
-      how.dataset.step = step;
-      for (const el of how.querySelectorAll(`[data-at="${step}"]`)) el.classList.add('play');
-    };
-    show(0);
-    track([...how.querySelectorAll('.step')], matchMedia('(min-width: 900px)').matches ? 40 : 72, show);
-    onLeave(how, () => finish(how));
-  }
 
   // Team: each role that scrolls past drops its pin and preview, and they stay.
   const team = document.querySelector('.team');
