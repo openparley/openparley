@@ -33,21 +33,13 @@
         <h1>Imprint</h1>
         <p>OpenParley and openparley.dev are run by:</p>
         <dl class="facts">
-          <dt>Name</dt>
-          <dd>{{legal.operator}}, trading as OpenParley</dd>
-          <dt>Legal form</dt>
-          <dd>{{legal.form}}</dd>
-          <dt>Address</dt>
-          <dd>{{legal.address}}</dd>
-          <dt>Chamber of Commerce (KvK)</dt>
-          <dd>{{legal.kvk}}</dd>
-          <dt>VAT number</dt>
-          <dd>{{legal.vat}}</dd>
+          {{legal.imprintFacts}}
           <dt>Email</dt>
           <dd><a href="mailto:{{legal.email}}">{{legal.email}}</a></dd>
         </dl>
+        {{legal.imprintMissing}}
         <p>
-          We answer email within two working days. If you need another way to reach us, ask by email and we'll arrange it. Security issues:
+          We aim to answer email within two working days. If you need another way to reach us, ask by email and we'll arrange it. Security issues:
           report them privately <a href="https://github.com/openparley/openparley/security/advisories/new">on GitHub</a>, or email us.
         </p>
         <p>
