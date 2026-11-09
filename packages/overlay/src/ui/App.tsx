@@ -15,6 +15,7 @@ import { ListCard } from './ListCard';
 import { Picker } from './Picker';
 import { DraftPin, Pin } from './Pin';
 import { Spotlight } from './Spotlight';
+import { onTouchTap } from './tap';
 import { ThreadCard } from './ThreadCard';
 
 export type View =
@@ -54,6 +55,8 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
   const [toast, setToast] = useState<Toast | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [hovered, setHovered] = useState<Element | null>(null);
+  // Decided by the last pointer, not the device: touchscreen laptops have a mouse too.
+  const [touch, setTouch] = useState(() => matchMedia('(hover: none)').matches);
   const scrollTo = useRef<string | null>(null);
 
   const active = view.name !== 'closed';
@@ -67,6 +70,12 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
   const notify = useCallback((message: string, tone?: 'error') => setToast({ message, tone, key: Date.now() }), []);
 
   useEffect(() => watchNavigation(() => setPage(pageKey())), []);
+
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => setTouch(event.pointerType === 'touch');
+    window.addEventListener('pointerdown', onPointerDown, { capture: true, passive: true });
+    return () => window.removeEventListener('pointerdown', onPointerDown, { capture: true });
+  }, []);
 
   // Only a real navigation resets the view; on mount this must not undo a shortcut pressed early.
   const shownPage = useRef(page);
@@ -154,14 +163,21 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
     if (view.name === 'thread' && state.status === 'ready' && !selected) setView(BROWSE);
   }, [view, selected, state.status]);
 
-  // Clicking anywhere on the page closes an open thread or an unsent new thread.
+  // Clicking anywhere on the page closes an open thread or an unsent new thread. A finger only
+  // closes it with a tap: touching the page to scroll must keep the draft.
   useEffect(() => {
     if (view.name !== 'thread' && view.name !== 'compose') return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!event.composedPath().includes(host)) setView(BROWSE);
+      if (event.pointerType !== 'touch' && !event.composedPath().includes(host)) setView(BROWSE);
     };
     window.addEventListener('pointerdown', onPointerDown, true);
-    return () => window.removeEventListener('pointerdown', onPointerDown, true);
+    const stopTaps = onTouchTap((tap) => {
+      if (!tap.path.includes(host)) setView(BROWSE);
+    });
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      stopTaps();
+    };
   }, [view.name, host]);
 
   const canCreate = state.status === 'ready' && state.user !== null;
@@ -310,6 +326,7 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
       {view.name === 'pick' && (
         <Picker
           host={host}
+          touch={touch}
           onHover={setHovered}
           onPick={(element, x, y) => setView({ name: 'compose', element, anchor: createAnchor(element, x, y) })}
         />
