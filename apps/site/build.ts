@@ -1,7 +1,15 @@
 import { cp, mkdir, readdir, rm } from 'node:fs/promises';
 import { BRAND_FILES, brandFontsCss } from '@openparley/brand';
 import { join } from 'node:path';
+import { unfilledLegalFields } from './legal';
 import { generatedFiles, renderHtml } from './pages';
+
+// The imprint is a legal requirement: never publish it with placeholders.
+const unfilled = unfilledLegalFields();
+if (unfilled.length > 0) {
+  console.error(`Fill in the business details in apps/site/legal.ts first: ${unfilled.join(', ')}`);
+  process.exit(1);
+}
 
 const out = join(import.meta.dir, 'dist');
 await rm(out, { recursive: true, force: true });

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy policy · OpenParley</title>
+    <meta name="description" content="What personal data OpenParley processes, why, and your rights." />
+    <link rel="canonical" href="https://openparley.dev/privacy" />
+    <meta name="theme-color" content="#fbf7ee" />
+    <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <link rel="preload" href="/brand/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/brand/fonts.css" />
+    <link rel="stylesheet" href="/site.css" />
+    <script src="/site.js"></script>
+  </head>
+  <body>
+    <header class="wrap nav">
+      <a class="brand" href="/"><img src="/brand/logo-light.svg" alt="OpenParley" width="165" height="40" /></a>
+      <a href="/#try">Try it</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="https://github.com/openparley/openparley">GitHub</a>
+    </header>
+    <div class="wrap legal">
+      <nav aria-label="Legal">
+        <a href="/imprint">Imprint</a>
+        <a href="/terms">Terms of service</a>
+        <a href="/privacy" aria-current="page">Privacy policy</a>
+        <a href="/dpa">Data processing agreement</a>
+      </nav>
+      <article>
+        <h1>Privacy policy</h1>
+        <p class="muted">Last updated {{legal.updated}}</p>
+        <p>
+          We collect as little as we can. openparley.dev has no analytics, no tracking and no cookies, and loads nothing from other companies.
+          This page explains what we do process, why, and what you can ask of us.
+        </p>
+
+        <h2 id="who">Who we are</h2>
+        <p>
+          OpenParley is run by {{legal.operator}}, {{legal.form}}, {{legal.address}} (Chamber of Commerce {{legal.kvk}}). For anything about your
+          data, email <a href="mailto:{{legal.email}}">{{legal.email}}</a>.
+        </p>
+        <p>We have two roles:</p>
+        <ul>
+          <li>
+            <strong>Controller</strong> for this website, for signing up for and paying for OpenParley Cloud, and for email you send us. This
+            policy covers those.
+          </li>
+          <li>
+            <strong>Processor</strong> for what's inside an OpenParley Cloud workspace: accounts, threads, comments and notification emails. The
+            organization that runs the workspace decides about that data, under our <a href="/dpa">data processing agreement</a>. If you were
+            invited to a workspace, ask that organization first; we help them answer you. What we store for them is listed
+            <a href="#workspaces">below</a> as well.
+          </li>
+        </ul>
+        <p>
+          If you run OpenParley on your own server, or use it without a server, we receive nothing at all: the data stays on your server or in
+          the browser.
+        </p>
+
+        <h2 id="site">Visiting openparley.dev</h2>
+        <ul>
+          <li>No cookies, analytics, ads or third-party scripts or fonts.</li>
+          <li>
+            Like any website, our servers receive your IP address and the page you ask for, to send it to you. We don't keep logs of visits. Our
+            hosting infrastructure may keep short-lived technical logs, including IP addresses, for security and to fix problems; they are
+            deleted within 14 days. Legal basis: our legitimate interest in running a secure website.
+          </li>
+          <li>
+            The demo on the homepage runs only in your browser. Threads you make there are saved in your browser's local storage and are never
+            sent to us. A thread's <strong>Copy link</strong> puts the conversation in the part of the link after <code>#</code>, which
+            browsers don't send to servers.
+          </li>
+        </ul>
+
+        <h2 id="signup">Signing up for OpenParley Cloud</h2>
+        <ul>
+          <li>
+            <strong>What:</strong> the workspace name and address you choose, your email address, and the plan. While you sign up, a cookie
+            (<code>openparley_signup</code>, 7 days) makes sure only your browser is shown your workspace's setup link.
+          </li>
+          <li>
+            <strong>Why:</strong> to create your workspace, send you the confirmation and setup emails, and contact you about your workspace and
+            plan (the email address becomes the workspace's billing contact). Legal basis: performing our agreement with you.
+          </li>
+          <li>
+            <strong>Polar:</strong> when you confirm a workspace or start a paid plan, we give Polar Software, Inc. your email address, workspace
+            name and workspace address, so you can upgrade and manage billing. Polar is our merchant of record: it sells you the subscription
+            and processes payment details, tax details and invoices as a separate controller, under
+            <a href="https://polar.sh/legal/privacy">Polar's privacy policy</a>. We never see your card details. Polar sends us updates about
+            your subscription, which we keep as billing records.
+          </li>
+          <li>
+            <strong>How long:</strong> sign-ups that never become a workspace are deleted 30 days after the link expires. The billing contact is
+            kept while the workspace exists. Billing records are kept for seven years, because Dutch tax law requires it.
+          </li>
+        </ul>
+
+        <h2 id="email">Email with us</h2>
+        <p>
+          If you write to us, we use your message and email address to answer you. Legal basis: our legitimate interest in helping you, or our
+          agreement with you. We delete support email two years after the conversation ends, unless we need it longer for a legal reason.
+        </p>
+
+        <h2 id="workspaces">Inside a workspace (as processor)</h2>
+        <p>For the organization that runs a workspace, we store and process:</p>
+        <ul>
+          <li>
+            <strong>Accounts:</strong> name, email address, mention name, role, and the password as an argon2id hash (never the password itself).
+            Sign-in sessions and agent tokens are stored only as hashes.
+          </li>
+          <li>
+            <strong>Threads:</strong> the comments, who wrote them (a person or their coding agent), when, and the page and element a thread is
+            on: the page path, the element's selector, up to 120 characters of its text and a few of its attributes (such as its id, label or
+            link), and the environment and revision your site reports.
+          </li>
+          <li><strong>Notifications:</strong> notification settings, and emails waiting to be sent, which are deleted within 24 hours.</li>
+          <li>
+            <strong>IP addresses</strong> are used to limit sign-in attempts. They are held in memory only and are never written to disk.
+          </li>
+        </ul>
+        <p>
+          When an admin removes a member, that member can no longer sign in and their sessions and agent tokens are deleted. Their name stays
+          on comments they wrote, so the conversation still makes sense. To be erased completely, ask the workspace's admin, or us.
+        </p>
+
+        <h2 id="storage">Cookies and browser storage</h2>
+        <p>We only use what's needed for the service to work, so there is nothing to consent to.</p>
+        <table>
+          <tr><th>Name</th><th>Where</th><th>What for</th><th>How long</th></tr>
+          <tr><td><code>openparley_session</code> (cookie)</td><td>Your workspace's address</td><td>Keeps you signed in</td><td>30 days</td></tr>
+          <tr><td><code>openparley_signup</code> (cookie)</td><td>cloud.openparley.dev</td><td>Shows the setup link only to the browser that signed up</td><td>7 days</td></tr>
+          <tr>
+            <td><code>openparley:v1:*</code> (local storage)</td>
+            <td>Sites that use OpenParley</td>
+            <td>Your sign-in token for the workspace, and whether the overlay is switched on; without a workspace, also the threads themselves</td>
+            <td>Until you sign out or clear it</td>
+          </tr>
+        </table>
+
+        <h2 id="recipients">Who else receives data</h2>
+        <p>We don't sell data or use it for advertising. We use these providers:</p>
+        <ul>
+          <li><strong>Hetzner Online GmbH</strong>, Germany: our servers, in Nuremberg, Germany. All data is stored there.</li>
+          <li>
+            <strong>Resend, Inc.</strong>, United States: sends our emails, including notification emails, which contain the comment that
+            triggered them.
+          </li>
+          <li><strong>Polar Software, Inc.</strong>, United States: merchant of record for paid plans (see <a href="#signup">above</a>).</li>
+        </ul>
+        <p>
+          Where data goes to the United States, this happens under the EU-U.S. Data Privacy Framework or the European Commission's standard
+          contractual clauses. We share data with authorities only when the law requires it.
+        </p>
+
+        <h2 id="security">Security</h2>
+        <p>
+          All connections are encrypted, passwords and tokens are stored as hashes, and every workspace has its own database. The
+          <a href="/dpa#security">DPA</a> lists our security measures.
+        </p>
+
+        <h2 id="rights">Your rights</h2>
+        <p>
+          You can ask us for access to your data, and to correct, delete, restrict or transfer it, and you can object to processing based on our
+          legitimate interest. Email <a href="mailto:{{legal.email}}">{{legal.email}}</a>; we answer within a month. We make no automated
+          decisions about you. If you're unhappy with how we handle your data, you can complain to the Dutch Data Protection Authority
+          (<a href="https://autoriteitpersoonsgegevens.nl">Autoriteit Persoonsgegevens</a>) or the authority where you live.
+        </p>
+
+        <h2 id="changes">Changes</h2>
+        <p>
+          When this policy changes, we update the date at the top. We email workspace billing contacts about important changes before they take
+          effect.
+        </p>
+      </article>
+    </div>
+    <footer>
+      <div class="wrap">
+        <p>The OpenParley overlay and server are open source under the MIT license. <a href="https://github.com/openparley/openparley">GitHub</a></p>
+        <p class="legal-links"><a href="/imprint">Imprint</a> <a href="/terms">Terms</a> <a href="/privacy">Privacy</a> <a href="/dpa">DPA</a> <a href="mailto:support@openparley.dev">support@openparley.dev</a></p>
+      </div>
+    </footer>
+  </body>
+</html>

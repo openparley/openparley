@@ -1,12 +1,13 @@
 // Generated parts of the site, shared by the build (production) and serve.ts (dev and e2e), so both
 // serve the same thing. The setup prompt and AGENTS.md snippet come from the sync server's source.
 import { AGENTS_SNIPPET, setupPrompt } from '../../apps/sync/src/setup-prompt';
+import { renderLegal } from './legal';
 import { articleToMarkdown } from './markdown';
 
 const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-/** Fills `{{AGENTS_SNIPPET}}` in a page. */
-export const renderHtml = (html: string) => html.replaceAll('{{AGENTS_SNIPPET}}', escapeHtml(AGENTS_SNIPPET));
+/** Fills `{{AGENTS_SNIPPET}}` and the `{{legal.*}}` business details in a page. */
+export const renderHtml = (html: string) => renderLegal(html.replaceAll('{{AGENTS_SNIPPET}}', escapeHtml(AGENTS_SNIPPET)));
 
 export function generatedFiles(docsHtml: string): Record<string, string> {
   const docs = articleToMarkdown(renderHtml(docsHtml), '/docs').replace(

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Data processing agreement · OpenParley</title>
+    <meta name="description" content="The data processing agreement (verwerkersovereenkomst) for OpenParley Cloud workspaces." />
+    <link rel="canonical" href="https://openparley.dev/dpa" />
+    <meta name="theme-color" content="#fbf7ee" />
+    <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <link rel="preload" href="/brand/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/brand/fonts.css" />
+    <link rel="stylesheet" href="/site.css" />
+    <script src="/site.js"></script>
+  </head>
+  <body>
+    <header class="wrap nav">
+      <a class="brand" href="/"><img src="/brand/logo-light.svg" alt="OpenParley" width="165" height="40" /></a>
+      <a href="/#try">Try it</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="https://github.com/openparley/openparley">GitHub</a>
+    </header>
+    <div class="wrap legal">
+      <nav aria-label="Legal">
+        <a href="/imprint">Imprint</a>
+        <a href="/terms">Terms of service</a>
+        <a href="/privacy">Privacy policy</a>
+        <a href="/dpa" aria-current="page">Data processing agreement</a>
+      </nav>
+      <article>
+        <h1>Data processing agreement</h1>
+        <p class="muted">OpenParley Cloud · Last updated {{legal.updated}}</p>
+        <p>
+          This data processing agreement (<strong>DPA</strong>, in Dutch a <em>verwerkersovereenkomst</em>) is part of the
+          <a href="/terms">terms of service</a> between you, the customer who runs an OpenParley Cloud workspace, and {{legal.operator}},
+          trading as OpenParley (<strong>we</strong>). You are the controller of the personal data in your workspace; we are your processor.
+          Words like <em>personal data</em>, <em>processing</em> and <em>data breach</em> mean what they mean in the GDPR (EU Regulation
+          2016/679). If this DPA and the terms disagree about personal data, this DPA wins.
+        </p>
+
+        <h2 id="what">1. What we process</h2>
+        <dl class="facts">
+          <dt>Purpose</dt>
+          <dd>Providing the Service: storing and showing threads, comments and accounts, sending notification emails, and giving coding agents access.</dd>
+          <dt>People</dt>
+          <dd>
+            Your members; people mentioned or named in comments; and anyone whose data appears in the element details the overlay records from
+            your pages.
+          </dd>
+          <dt>Data</dt>
+          <dd>
+            Name, email address, mention name, role, password hash; comments and anything written in them; page paths, element selectors, up to
+            120 characters of element text and some element attributes; environment and revision; timestamps; notification settings; names of
+            connected agents; hashed sessions and tokens; IP addresses, in memory only, to limit sign-in attempts.
+          </dd>
+          <dt>Duration</dt>
+          <dd>As long as the agreement runs, and afterwards until the data is deleted (section 9).</dd>
+        </dl>
+        <p>You make sure you are allowed to have this data processed, and that no special categories of personal data are put into the Service.</p>
+
+        <h2 id="instructions">2. Your instructions</h2>
+        <p>
+          We process the data only on your instructions: the terms, this DPA, and what you and your members do in the Service. We don't use it
+          for anything else, unless the law requires it; then we tell you first, unless the law forbids that. If we believe an instruction breaks
+          the GDPR, we tell you.
+        </p>
+
+        <h2 id="confidentiality">3. Confidentiality</h2>
+        <p>Only people who need it to run the Service have access to the data, and they are bound to keep it confidential.</p>
+
+        <h2 id="security">4. Security</h2>
+        <p>We take appropriate technical and organizational measures for the risks involved. At least:</p>
+        <ul>
+          <li>All connections use TLS (HTTPS).</li>
+          <li>Passwords are stored as argon2id hashes; sign-in sessions and agent tokens are stored as hashes too.</li>
+          <li>Every workspace has its own database file; one workspace can't reach another's data.</li>
+          <li>Servers run in the EU (Hetzner, Germany). The hosting dashboard isn't reachable from the internet, and only the operator has access to the servers.</li>
+          <li>Services run as unprivileged containers. Every change passes automated tests, including access-control tests, before it is deployed.</li>
+          <li>Sign-in attempts are rate-limited; content from users is always shown as text, never as HTML.</li>
+          <li>Software and dependencies are kept up to date; security reports are handled with priority.</li>
+        </ul>
+        <p>We may change these measures, as long as the level of security doesn't go down.</p>
+
+        <h2 id="subprocessors">5. Subprocessors</h2>
+        <p>You allow us to use these subprocessors:</p>
+        <table>
+          <tr><th>Subprocessor</th><th>What for</th><th>Where</th></tr>
+          <tr><td>Hetzner Online GmbH</td><td>Servers and storage</td><td>Germany</td></tr>
+          <tr><td>Resend, Inc.</td><td>Sending notification and invite emails</td><td>United States</td></tr>
+        </table>
+        <p>
+          We give each subprocessor the same data protection obligations as this DPA. We tell you by email at least 30 days before we add or
+          replace one. If you object for good reasons and we can't resolve it, you can end the agreement before the change. We remain
+          responsible for our subprocessors.
+        </p>
+
+        <h2 id="transfers">6. Transfers outside the EU</h2>
+        <p>
+          We transfer personal data outside the European Economic Area only with the safeguards the GDPR requires, such as the EU-U.S. Data
+          Privacy Framework or the European Commission's standard contractual clauses (for Resend: their
+          <a href="https://resend.com/legal/dpa">DPA</a>).
+        </p>
+
+        <h2 id="assistance">7. Helping you</h2>
+        <ul>
+          <li>
+            Your admins can handle most requests from people themselves: correct names, remove members, and delete comments and threads. For
+            anything else, such as fully erasing a person or exporting their data, ask us and we help.
+          </li>
+          <li>If a person contacts us directly about your workspace, we forward the request to you and don't answer it ourselves unless you ask.</li>
+          <li>On request, we help with data protection impact assessments and consultations with a supervisory authority, as far as they concern our processing.</li>
+          <li>For help that takes more than a reasonable amount of work, we may charge reasonable costs, agreed with you in advance.</li>
+        </ul>
+
+        <h2 id="breaches">8. Data breaches</h2>
+        <p>
+          If we become aware of a data breach affecting your data, we tell you without undue delay and, where possible, within 48 hours, by email
+          to the workspace's billing contact. We include what we know about its nature, the data and people affected, the likely consequences and
+          the measures taken, and add to it as we learn more. We take measures to limit the damage and help you meet your own obligations to
+          report it.
+        </p>
+
+        <h2 id="deletion">9. When the agreement ends</h2>
+        <p>
+          During the 30 days after the agreement ends, you can ask for an export of your workspace. After that, we delete the workspace and the
+          personal data in it within 30 days, unless the law requires us to keep it.
+        </p>
+
+        <h2 id="audits">10. Showing that we comply</h2>
+        <p>
+          We give you the information you need to check that we keep to this DPA, such as answers to a reasonable security questionnaire. If that
+          isn't enough, an independent auditor bound to confidentiality may audit us, at most once a year, with 30 days' notice, during working
+          hours and at your cost, unless the audit shows that we seriously failed to comply.
+        </p>
+
+        <h2 id="liability">11. Liability</h2>
+        <p>The limits on liability in section 10 of the <a href="/terms#liability">terms</a> also apply to this DPA, as far as the law allows.</p>
+      </article>
+    </div>
+    <footer>
+      <div class="wrap">
+        <p>The OpenParley overlay and server are open source under the MIT license. <a href="https://github.com/openparley/openparley">GitHub</a></p>
+        <p class="legal-links"><a href="/imprint">Imprint</a> <a href="/terms">Terms</a> <a href="/privacy">Privacy</a> <a href="/dpa">DPA</a> <a href="mailto:support@openparley.dev">support@openparley.dev</a></p>
+      </div>
+    </footer>
+  </body>
+</html>

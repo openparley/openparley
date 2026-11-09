@@ -164,6 +164,7 @@ docker logs &lt;container&gt;                        # the setup link</code></pr
           <tr><td><code>TRUST_PROXY</code></td><td>off</td><td>Set to <code>1</code> behind a reverse proxy so rate limiting sees real client IPs.</td></tr>
           <tr><td><code>SETUP_TOKEN</code></td><td>random</td><td>Fix the first-run setup token instead of generating one.</td></tr>
           <tr><td><code>RESEND_API_KEY</code>, <code>MAIL_FROM</code></td><td>off</td><td>Send invites and notifications by email through <a href="https://resend.com">Resend</a>. Without them, the admin page shows the invite link to send yourself, and there are no notifications.</td></tr>
+          <tr><td><code>PRIVACY_URL</code></td><td>none</td><td>Your privacy policy, linked where people sign in or create an account.</td></tr>
           <tr><td><code>NOTIFY_QUIET_SECONDS</code></td><td><code>60</code></td><td>Updates on a thread are emailed once it has been quiet this long (at the latest after 10 minutes).</td></tr>
           <tr><td><code>OVERLAY_DIR</code></td><td>the repo's build output</td><td>Folder with the built overlay files.</td></tr>
         </table>
@@ -296,5 +297,11 @@ bun run build            # writes packages/overlay/dist/</code></pre>
         </ul>
       </article>
     </div>
+    <footer>
+      <div class="wrap">
+        <p>The OpenParley overlay and server are open source under the MIT license. <a href="https://github.com/openparley/openparley">GitHub</a></p>
+        <p class="legal-links"><a href="/imprint">Imprint</a> <a href="/terms">Terms</a> <a href="/privacy">Privacy</a> <a href="/dpa">DPA</a> <a href="mailto:support@openparley.dev">support@openparley.dev</a></p>
+      </div>
+    </footer>
   </body>
 </html>
