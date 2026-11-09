@@ -536,9 +536,15 @@ test('cards near the bottom-right never slide under the toolbar', async ({ page 
 test('a comment author lines up with their avatar', async ({ page }) => {
   await openOverlay(page);
   await createThread(page, '.price', 'nice', 'Ruben');
-  await page.evaluate(() => document.fonts.ready);
+  // fonts.ready can resolve before the overlay's own face starts loading; wait for that face, and
+  // poll because the swap reflows on a later frame.
+  await page.evaluate(() => document.fonts.load("600 13px 'OpenParley Sans'"));
   const card = page.getByRole('dialog', { name: 'Thread' });
-  const avatar = (await card.locator('.comment .avatar').boundingBox())!;
-  const name = (await card.locator('.comment-author').boundingBox())!;
-  expect(Math.abs(avatar.y + avatar.height / 2 - (name.y + name.height / 2))).toBeLessThanOrEqual(1);
+  await expect
+    .poll(async () => {
+      const avatar = (await card.locator('.comment .avatar').boundingBox())!;
+      const name = (await card.locator('.comment-author').boundingBox())!;
+      return Math.abs(avatar.y + avatar.height / 2 - (name.y + name.height / 2));
+    })
+    .toBeLessThanOrEqual(1);
 });

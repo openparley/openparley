@@ -91,35 +91,45 @@ test.describe('with motion', () => {
 
   test('How it works rotates its steps in view, pauses on hover, and stops on the one you pick', async ({ page }) => {
     await page.goto('/');
-    // A short dwell keeps the test quick; the rotation logic is the same at 6s.
+    // A short dwell keeps the test quick. Every step change is recorded in the page, so a state that
+    // lasts shorter than an assertion's polling interval is never missed.
     await page.addStyleTag({ content: '.how .step { --dwell: 0.6s !important; }' });
     const how = page.locator('.how');
+    await how.evaluate((el) => {
+      const seen: string[] = [];
+      (window as unknown as { seen: string[] }).seen = seen;
+      new MutationObserver(() => seen.push(el.getAttribute('data-step') ?? '')).observe(el, { attributeFilter: ['data-step'] });
+    });
     await expect(how).toHaveAttribute('data-step', '0');
     await expect(page.locator('.s-resolved')).toBeHidden();
 
     await scrollTo(page, '.how', 0.2);
-    await expect(how).toHaveAttribute('data-step', '1');
-    await expect(page.locator('.s-composer')).toBeVisible();
-    await expect(page.locator('.s-face.draft')).toHaveCSS('opacity', '1');
-    await expect(page.locator('.step.on .step-pick')).toHaveText('Point');
-
-    await expect(how).toHaveAttribute('data-step', '2');
-    await expect(page.locator('.s-agent-reply')).toHaveCSS('opacity', '1');
-    await expect(how).toHaveAttribute('data-step', '3');
-    await expect(page.locator('.s-resolved')).toBeVisible();
-    // And around again, replaying step 1.
-    await expect(how).toHaveAttribute('data-step', '1');
+    // In order, and around again.
+    await expect.poll(() => page.evaluate(() => (window as unknown as { seen: string[] }).seen.slice(0, 4).join())).toBe('1,2,3,1');
 
     await page.locator('.s-demo').hover();
     await expect(page.locator('.step.on .step-time')).toHaveCSS('animation-play-state', 'paused');
     await page.mouse.move(0, 0);
     await expect(page.locator('.step.on .step-time')).toHaveCSS('animation-play-state', 'running');
 
-    await page.getByRole('button', { name: 'Your agent picks it up' }).click();
-    await expect(how).toHaveAttribute('data-step', '2');
+    // Picking stops the rotation, so each step's frame can be checked at leisure.
+    const pick = (name: string) => page.getByRole('button', { name }).click();
+    await pick('Your agent picks it up');
     await expect(how).not.toHaveClass(/\bauto\b/);
+    await expect(how).toHaveAttribute('data-step', '2');
     await expect(page.getByRole('button', { name: 'Your agent picks it up' })).toHaveAttribute('aria-current', '');
     await expect(page.locator('.step.on .step-time')).toHaveCSS('animation-name', 'none');
+    await expect(page.locator('.s-agent-reply')).toHaveCSS('opacity', '1');
+    await expect(page.locator('.s-face.open')).toHaveCSS('opacity', '1');
+
+    await pick('Point');
+    await expect(page.locator('.s-composer')).toBeVisible();
+    await expect(page.locator('.s-face.draft')).toHaveCSS('opacity', '1');
+    await expect(page.locator('.s-composer .s-type > span').last()).toHaveCSS('opacity', '1');
+
+    await pick('Check it where it lives');
+    await expect(page.locator('.s-resolved')).toBeVisible();
+    await expect(page.locator('.s-face.open')).toHaveCSS('opacity', '0');
   });
 
   test('the team section drops one pin per role and keeps them', async ({ page }) => {
