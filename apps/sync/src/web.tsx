@@ -95,7 +95,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
         403,
       );
     }
-    return c.html(<SetupPage token={token} />);
+    return c.html(<SetupPage privacyUrl={config.privacyUrl} token={token} />);
   });
 
   web.post('/setup', async (c) => {
@@ -104,7 +104,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     if (form.token !== setupToken) return c.text('Invalid setup token.', 403);
     const values = { name: String(form.name ?? ''), email: String(form.email ?? '') };
     const account = await parseAccount(form);
-    if ('error' in account) return c.html(<SetupPage token={setupToken} error={account.error} values={values} />, 400);
+    if ('error' in account) return c.html(<SetupPage privacyUrl={config.privacyUrl} token={setupToken} error={account.error} values={values} />, 400);
     const user = repo.createUser({ ...account, role: 'owner' });
     signIn(c, user);
     return c.redirect('/admin');
@@ -116,7 +116,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     if (!repo.hasUsers()) return c.redirect('/setup');
     const next = safeNext(c.req.query('next'));
     if (c.get('user')) return c.redirect(next);
-    return c.html(<LoginPage next={next} />);
+    return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} />);
   });
 
   web.post('/login', async (c) => {
@@ -125,13 +125,13 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     const next = safeNext(String(form.next ?? ''));
     const key = `${clientIp(c)}|${email}`;
     if (limiter.blocked(key)) {
-      return c.html(<LoginPage next={next} email={email} error="Too many attempts. Wait a few minutes and try again." />, 429);
+      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} error="Too many attempts. Wait a few minutes and try again." />, 429);
     }
     const user = repo.findActiveUserByEmail(email);
     const valid = await verifyPassword(String(form.password ?? ''), user?.passwordHash ?? DUMMY_HASH);
     if (!user || !valid) {
       limiter.fail(key);
-      return c.html(<LoginPage next={next} email={email} error="That email and password don't match." />, 401);
+      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} error="That email and password don't match." />, 401);
     }
     limiter.reset(key);
     signIn(c, user);
@@ -209,7 +209,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
   web.get('/invite/:token', (c) => {
     const invite = repo.findUsableInvite(c.req.param('token'));
     if (!invite) return c.html(<Message title="Invite expired">This invite link is invalid, already used, or expired. Ask for a new one.</Message>, 404);
-    return c.html(<InvitePage token={c.req.param('token')} values={invite.email ? { name: '', email: invite.email } : undefined} />);
+    return c.html(<InvitePage privacyUrl={config.privacyUrl} token={c.req.param('token')} values={invite.email ? { name: '', email: invite.email } : undefined} />);
   });
 
   web.post('/invite/:token', async (c) => {
@@ -223,7 +223,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     const form = await c.req.parseBody();
     const values = { name: String(form.name ?? ''), email: String(form.email ?? '') };
     const account = await parseAccount(form);
-    if ('error' in account) return c.html(<InvitePage token={token} error={account.error} values={values} />, 400);
+    if ('error' in account) return c.html(<InvitePage privacyUrl={config.privacyUrl} token={token} error={account.error} values={values} />, 400);
     if (membersFull()) {
       return c.html(<Message title="No seats left">This OpenParley server is full. Ask an admin to make room, then use this link again.</Message>, 403);
     }
@@ -617,7 +617,17 @@ function AccountFields({ values }: { values?: { name: string; email: string } })
   );
 }
 
-function SetupPage({ token, error, values }: { token: string; error?: string; values?: { name: string; email: string } }) {
+function PrivacyLine({ privacyUrl }: { privacyUrl: string | null }) {
+  return privacyUrl ? (
+    <p class="muted">
+      How your account details are handled: <a href={privacyUrl}>privacy policy</a>.
+    </p>
+  ) : null;
+}
+
+type AccountPageProps = { privacyUrl: string | null; token: string; error?: string; values?: { name: string; email: string } };
+
+function SetupPage({ privacyUrl, token, error, values }: AccountPageProps) {
   return (
     <Page title="Set up OpenParley">
       <h1>Set up OpenParley</h1>
@@ -628,11 +638,12 @@ function SetupPage({ token, error, values }: { token: string; error?: string; va
         <AccountFields values={values} />
         <button type="submit">Create owner account</button>
       </form>
+      <PrivacyLine privacyUrl={privacyUrl} />
     </Page>
   );
 }
 
-function LoginPage({ next, email, error }: { next: string; email?: string; error?: string }) {
+function LoginPage({ privacyUrl, next, email, error }: { privacyUrl: string | null; next: string; email?: string; error?: string }) {
   return (
     <Page title="Sign in">
       <h1>Sign in to OpenParley</h1>
@@ -646,6 +657,7 @@ function LoginPage({ next, email, error }: { next: string; email?: string; error
         <button type="submit">Sign in</button>
       </form>
       <p class="muted">No account? Ask an admin of this server for an invite link.</p>
+      <PrivacyLine privacyUrl={privacyUrl} />
     </Page>
   );
 }
@@ -700,7 +712,7 @@ function inviteEmail({ to, inviter, link, projects }: { to: string; inviter: Use
   };
 }
 
-function InvitePage({ token, error, values }: { token: string; error?: string; values?: { name: string; email: string } }) {
+function InvitePage({ privacyUrl, token, error, values }: AccountPageProps) {
   return (
     <Page title="Join OpenParley">
       <h1>Join your team on OpenParley</h1>
@@ -709,6 +721,7 @@ function InvitePage({ token, error, values }: { token: string; error?: string; v
         <AccountFields values={values} />
         <button type="submit">Create account</button>
       </form>
+      <PrivacyLine privacyUrl={privacyUrl} />
     </Page>
   );
 }

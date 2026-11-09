@@ -187,6 +187,7 @@ Not built yet: backups (plan: continuous per-file replication such as Litestream
 | `POLAR_SERVER` | `production` | `sandbox` for Polar's sandbox |
 | `RESEND_API_KEY`, `MAIL_FROM` | | Without them, emails (confirmation, setup, renewal and upgrade links) go to the log |
 | `SUPPORT_EMAIL` | | Reply-to of every email, and shown on paused workspaces |
+| `SITE_URL` | | Public website with `/terms`, `/privacy`, `/dpa`, `/imprint`: linked on sign-up (agreeing to the terms) and the landing page; every workspace gets `PRIVACY_URL=<SITE_URL>/privacy`. Unset: no legal links (development) |
 | `NOTIFY_QUIET_SECONDS` | `60` | Passed to every workspace: how long a thread is quiet before its notifications are emailed |
 
 ## Security notes

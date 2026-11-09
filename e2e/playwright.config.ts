@@ -36,6 +36,7 @@ export default defineConfig({
         POLAR_PRODUCT_TEAM: '00000000-0000-4000-8000-00000000000a',
         POLAR_API_URL: FAKE_POLAR_URL,
         POLAR_PORTAL_URL: `${FAKE_POLAR_URL}/portal`,
+        SITE_URL,
       },
     },
     {

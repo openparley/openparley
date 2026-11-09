@@ -28,6 +28,17 @@ describe('first-run setup', () => {
 });
 
 describe('sign in', () => {
+  test('PRIVACY_URL is linked where people sign in or create an account', async () => {
+    const { browser, owner } = harness({ env: { PRIVACY_URL: 'https://host.test/privacy' } });
+    expect(await (await browser().request(`/setup?token=${SETUP_TOKEN}`)).text()).toContain('href="https://host.test/privacy"');
+    await owner();
+    expect(await (await browser().request('/login')).text()).toContain('href="https://host.test/privacy"');
+
+    const plain = harness();
+    await plain.owner();
+    expect(await (await plain.browser().request('/login')).text()).not.toContain('privacy');
+  });
+
   test('wrong passwords fail and attempts are rate limited', async () => {
     const { owner, browser } = harness();
     await owner();

@@ -34,6 +34,8 @@ export interface CloudConfig {
   /** Null: emails are written to the log instead (development). */
   mail: MailConfig | null;
   supportEmail: string | null;
+  /** The public website with the terms, privacy policy, DPA and imprint (`/terms`, …). Null: no legal links (development). */
+  siteUrl: string | null;
   /** Passed to every workspace: how long a thread must be quiet before its notifications go out. */
   notifyQuietMs: number;
 }
@@ -79,6 +81,7 @@ export function loadCloudConfig(env: Record<string, string | undefined> = proces
     polar: loadPolar(env),
     mail: env.RESEND_API_KEY ? { resendApiKey: env.RESEND_API_KEY, from: env.MAIL_FROM! } : null,
     supportEmail: env.SUPPORT_EMAIL ?? null,
+    siteUrl: env.SITE_URL ? new URL(env.SITE_URL).origin : null,
     notifyQuietMs: Number(env.NOTIFY_QUIET_SECONDS ?? 60) * 1000,
   };
 }

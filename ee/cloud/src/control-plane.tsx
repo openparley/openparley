@@ -91,7 +91,7 @@ export function controlPlane({ cloud, config, polar }: Options) {
 
   app.get('/', (c) =>
     c.html(
-      <Page title="OpenParley Cloud">
+      <Page title="OpenParley Cloud" siteUrl={config.siteUrl}>
         <h1>OpenParley Cloud</h1>
         <p>Comment on any element of your live site. Your product team replies in the thread, and your coding agent picks it up, ships the fix and replies too. We run the server; you add one script tag.</p>
         {polar ? (
@@ -120,7 +120,7 @@ export function controlPlane({ cloud, config, polar }: Options) {
   app.get('/signup', (c) => {
     if (!polar) return c.html(<Closed />, 503);
     const plan = c.req.query('plan');
-    return c.html(<SignupPage nonce={c.get('nonce')} domain={config.domain} values={{ name: '', slug: '', email: '', plan: isPlanId(plan) ? plan : 'free' }} />);
+    return c.html(<SignupPage nonce={c.get('nonce')} domain={config.domain} siteUrl={config.siteUrl} values={{ name: '', slug: '', email: '', plan: isPlanId(plan) ? plan : 'free' }} />);
   });
 
   app.post('/signup', async (c) => {
@@ -133,7 +133,7 @@ export function controlPlane({ cloud, config, polar }: Options) {
       plan: isPlanId(form.plan) ? form.plan : 'free',
     };
     const fail = (error: string, status: 400 | 429 | 502 = 400) =>
-      c.html(<SignupPage nonce={c.get('nonce')} domain={config.domain} values={values} error={error} />, status);
+      c.html(<SignupPage nonce={c.get('nonce')} domain={config.domain} siteUrl={config.siteUrl} values={values} error={error} />, status);
 
     const ip = clientIp(c, config.trustProxy);
     if (signupLimiter.blocked(ip)) return fail('Too many sign-ups from your network. Try again in an hour.', 429);
@@ -378,7 +378,7 @@ label{display:block;font-weight:600;margin:12px 0 4px}input{font:inherit;width:1
 input:focus{outline:none;border-color:#2c7f6b;box-shadow:0 0 0 0.5px #2c7f6b}
 button,.button{display:inline-block;font:inherit;font-weight:700;padding:8px 16px;border-radius:999px;border:1px solid #2c7f6b;background:#2c7f6b;color:#fff;cursor:pointer;margin-top:12px;text-decoration:none}
 .muted{color:#5e6672}.error{background:#fbe6df;border:1px solid #e8846b;color:#14181f;padding:10px 12px;border-radius:12px}
-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}footer{margin-top:40px;font-size:14px}footer a{color:inherit}
 .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:24px 0}.plans section{margin:0}.price{font-size:20px;font-weight:700;margin:0}
 .address{display:flex;align-items:center;gap:6px}.address input{flex:1}.address span{white-space:nowrap}
 fieldset{border:0;padding:0;margin:12px 0 0}legend{font-weight:600;margin-bottom:4px;padding:0}
@@ -386,7 +386,7 @@ fieldset{border:0;padding:0;margin:12px 0 0}legend{font-weight:600;margin-bottom
 .ok{background:#ddf1ea;border:1px solid #7cc7b2;padding:10px 12px;border-radius:12px}
 `;
 
-function Page({ title, head, children }: { title: string; head?: Child; children: Child }) {
+function Page({ title, head, siteUrl, children }: { title: string; head?: Child; siteUrl?: string | null; children: Child }) {
   return (
     <html lang="en">
       <head>
@@ -407,6 +407,12 @@ function Page({ title, head, children }: { title: string; head?: Child; children
             </a>
           </header>
           {children}
+          {siteUrl && (
+            <footer class="muted">
+              <a href={`${siteUrl}/imprint`}>Imprint</a> · <a href={`${siteUrl}/terms`}>Terms</a> · <a href={`${siteUrl}/privacy`}>Privacy</a> ·{' '}
+              <a href={`${siteUrl}/dpa`}>DPA</a>
+            </footer>
+          )}
         </main>
       </body>
     </html>
@@ -439,9 +445,10 @@ const SLUG_SCRIPT = `(() => {
   });
 })();`;
 
-function SignupPage({ nonce, domain, values, error }: { nonce: string; domain: string; values: SignupValues; error?: string }) {
+function SignupPage(props: { nonce: string; domain: string; siteUrl: string | null; values: SignupValues; error?: string }) {
+  const { nonce, domain, siteUrl, values, error } = props;
   return (
-    <Page title="Start your workspace">
+    <Page title="Start your workspace" siteUrl={siteUrl}>
       <h1>Start your OpenParley workspace</h1>
       {error && (
         <p class="error" role="alert">
@@ -466,6 +473,13 @@ function SignupPage({ nonce, domain, values, error }: { nonce: string; domain: s
             </label>
           ))}
         </fieldset>
+        {siteUrl && (
+          <p class="muted">
+            By continuing, you agree to the <a href={`${siteUrl}/terms`}>terms of service</a> and the{' '}
+            <a href={`${siteUrl}/dpa`}>data processing agreement</a>, for the organization the workspace is for. The{' '}
+            <a href={`${siteUrl}/privacy`}>privacy policy</a> explains what we do with your details.
+          </p>
+        )}
         <button type="submit">Continue</button>
       </form>
       <p class="muted">

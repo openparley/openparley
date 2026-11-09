@@ -14,6 +14,8 @@ export interface Config {
   limits: Limits;
   /** Where an admin can raise the limits (e.g. a hosting provider's plan page); linked from the admin page. */
   limitsUrl: string | null;
+  /** Shown where people create an account or sign in (e.g. a hosting provider's privacy policy). */
+  privacyUrl: string | null;
   /** Resend, for invite emails. Null: invite links are shown to the admin to send themselves. */
   mail: MailConfig | null;
   /** Without `mail`: write emails (invites, notifications) to the log instead of not sending them. Development only. */
@@ -65,6 +67,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       threads: limit('MAX_THREADS', env.MAX_THREADS),
     },
     limitsUrl: env.LIMITS_URL ? new URL(env.LIMITS_URL).href : null,
+    privacyUrl: env.PRIVACY_URL ? new URL(env.PRIVACY_URL).href : null,
     mail: mailConfig(env),
     mailLog: env.MAIL_LOG === '1',
     notifyQuietMs: seconds('NOTIFY_QUIET_SECONDS', env.NOTIFY_QUIET_SECONDS, 60) * 1000,

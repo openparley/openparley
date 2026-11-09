@@ -167,6 +167,7 @@ export class Cloud {
         trustProxy: this.config.trustProxy,
         limits: { members: tenant.maxMembers, projects: tenant.maxProjects, threads: tenant.maxThreads },
         limitsUrl: `${this.controlUrl()}/workspaces/${tenant.slug}`,
+        privacyUrl: this.config.siteUrl ? `${this.config.siteUrl}/privacy` : null,
         mail: this.config.mail,
         notifyQuietMs: this.config.notifyQuietMs,
       },

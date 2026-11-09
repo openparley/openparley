@@ -156,6 +156,24 @@ describe('webhook signatures', () => {
 });
 
 describe('sign-up', () => {
+  test('the terms, DPA and privacy policy are linked before signing up, and in every workspace', async () => {
+    const { cloud } = setup({ env: { SITE_URL: 'https://openparley.test/' } });
+    const page = await (await browser(cloud).request(`${CONTROL}/signup`)).text();
+    const agreement = page.slice(page.indexOf('By continuing'), page.indexOf('type="submit"'));
+    for (const path of ['/terms', '/dpa', '/privacy']) expect(agreement).toContain(`href="https://openparley.test${path}"`);
+    expect(page).toContain('href="https://openparley.test/imprint"');
+
+    cloud.provision({ slug: 'acme', name: 'Acme' });
+    const token = cloud.control.find('acme')!.setupToken;
+    const setupPage = await (await cloud.fetch(new Request(`https://acme.${DOMAIN}/setup?token=${token}`))).text();
+    expect(setupPage).toContain('href="https://openparley.test/privacy"');
+  });
+
+  test('without SITE_URL (development) there are no legal links', async () => {
+    const { cloud } = setup();
+    expect(await (await browser(cloud).request(`${CONTROL}/signup`)).text()).not.toContain('By continuing');
+  });
+
   test('form → checkout → webhook → setup link → owner account', async () => {
     const { cloud, mails, checkouts } = setup();
     const b = browser(cloud);
