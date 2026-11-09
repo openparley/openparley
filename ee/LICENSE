@@ -1,0 +1,38 @@
+The OpenParley Enterprise License (the "Enterprise License")
+Copyright (c) 2026 OpenParley
+
+This license applies to all content in the "ee/" directory of this
+repository (the "Enterprise Software"). Everything outside "ee/" is MIT
+licensed; see the LICENSE file in the repository root.
+
+1. Production use. You may use the Enterprise Software in production only if
+   you (and any entity you represent) have agreed to the OpenParley terms of
+   service or another written agreement with OpenParley that covers it, and
+   hold a valid subscription or license for the scope of that use.
+
+2. Development and testing. Without such an agreement you may copy, modify
+   and run the Enterprise Software solely for developing and testing it,
+   including contributing changes back to OpenParley. You may not use it to
+   serve your own or anyone else's users.
+
+3. Modifications. You may create modifications of the Enterprise Software,
+   but you, and not OpenParley, are responsible for them. OpenParley and its
+   licensors retain all rights, title and interest in and to the Enterprise
+   Software and to modifications made to it, to the extent permitted by law.
+
+4. No redistribution. You may not sell, resell, sublicense, rent, lease,
+   host for third parties, or otherwise make the Enterprise Software, or any
+   modification of it, available to others, except as an agreement with
+   OpenParley allows.
+
+5. Third-party components remain under their own licenses.
+
+THE ENTERPRISE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO
+EVENT SHALL OPENPARLEY OR ITS LICENSORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE ENTERPRISE SOFTWARE OR ITS USE.
+
+For questions about licensing the Enterprise Software, contact OpenParley at
+support@openparley.dev.

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    # Pinned: Playwright 1.58.2 (pinned to match local Chromium) can't install on newer Ubuntu.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.x
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test
+      # Version comes from the pinned @playwright/test (1.58.2).
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7
+
+  images:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        dockerfile: [ee/cloud/Dockerfile, apps/site/Dockerfile, apps/sync/Dockerfile]
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build -f ${{ matrix.dockerfile }} .
+
+  # Coolify deploys the `deploy` branch, so only commits that passed everything above go live.
+  promote:
+    needs: [test, images]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    concurrency: deploy
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      # Fast-forward only: a rejected push means someone pushed to deploy by hand.
+      - run: git push origin HEAD:refs/heads/deploy

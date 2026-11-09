@@ -1,0 +1,23 @@
+{
+  "name": "@openparley/sync",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "start": "bun src/main.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "hono": "^4.10.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@openparley/protocol": "workspace:*",
+    "@openparley/brand": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

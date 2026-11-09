@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "hono/jsx" },
+  "include": ["src", "test", "scripts", "dev", "../../apps/sync/src", "../../packages/protocol/src", "../../packages/brand"]
+}

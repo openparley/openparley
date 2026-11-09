@@ -1,0 +1,26 @@
+{
+  "name": "openparley",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "ee/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter @openparley/overlay build && bun run --filter @openparley/site build",
+    "dev": "bun scripts/dev.ts",
+    "dev:sync": "bun run --filter @openparley/sync dev",
+    "typecheck": "tsc -p . && tsc -p packages/brand && tsc -p packages/overlay && tsc -p apps/sync && tsc -p apps/site && tsc -p ee/cloud && tsc -p e2e",
+    "test": "bun scripts/check-boundaries.ts && bun run --filter @openparley/overlay test && bun run --filter @openparley/sync test && bun run --filter @openparley/cloud test && bun run --filter @openparley/site test",
+    "e2e": "bun run --filter @openparley/overlay build && playwright test -c e2e/playwright.config.ts",
+    "dev:cloud": "bun --watch ee/cloud/dev/main.ts",
+    "cloud": "bun ee/cloud/src/cli.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  },
+  "license": "SEE LICENSE IN LICENSE"
+}

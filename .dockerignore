@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/data
+**/*.db
+**/*.db-*
+.git
+.github
+.plans
+.docs
+.pi
+.claude
+.playwright-mcp
+.env
+**/.DS_Store
+e2e
+test-results
+playwright-report

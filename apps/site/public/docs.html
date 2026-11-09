@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Docs · OpenParley</title>
+    <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <link rel="preload" href="/brand/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/brand/fonts.css" />
+    <link rel="stylesheet" href="/site.css" />
+    <link rel="alternate" type="text/markdown" href="/docs.md" />
+    <link rel="describedby" href="/llms.txt" />
+    <script src="/site.js"></script>
+  </head>
+  <body>
+    <header class="wrap nav">
+      <a class="brand" href="/"><img src="/brand/logo-light.svg" alt="OpenParley" width="165" height="40" /></a>
+      <a href="/#try">Try it</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/docs">Docs</a>
+      <a href="https://github.com/openparley/openparley">GitHub</a>
+    </header>
+    <div class="wrap docs">
+      <nav aria-label="Docs">
+        <a href="#start">Get started</a>
+        <a href="#agents">Coding agents (MCP)</a>
+        <a href="#team">Bring your team</a>
+        <a href="#server">Self-hosting</a>
+        <a href="#production">On production</a>
+        <a href="#options">Script options</a>
+        <a href="#npm">Using npm</a>
+        <a href="#using">Using the overlay</a>
+        <a href="#anchors">How elements are found</a>
+        <a href="#privacy">Links and privacy</a>
+        <a href="#links">Without a server</a>
+        <a href="#limits">Limitations</a>
+      </nav>
+      <article>
+        <h1>Docs</h1>
+
+        <h2 id="start">Get started</h2>
+        <p>
+          OpenParley puts conversations on the elements of your live site: you point at what you mean, your teammates reply in the thread, and your
+          coding agent picks it up, makes the change and replies too.
+        </p>
+        <ol>
+          <li><a href="https://cloud.openparley.dev/signup">Create a free workspace</a> (or <a href="#server">host your own</a>).</li>
+          <li>On its admin page, create a project for your site and list the origins where it runs: production, staging, <code>http://localhost:5173</code>.</li>
+          <li>Paste the project's script tag into your site. With <code>data-launcher="members"</code> only signed-in teammates load OpenParley (see <a href="#production">On production</a>).</li>
+          <li><a href="#agents">Connect your coding agent</a> and <a href="#team">invite your team</a>.</li>
+        </ol>
+        <p>Then press <kbd>C</kbd> on your site, click an element and write. That's a thread.</p>
+        <h3 id="agent-setup">Or let your coding agent set it up</h3>
+        <p>
+          Each project on your admin page has a <strong>Copy prompt</strong> button: a setup prompt with your workspace and project key filled in.
+          Paste it into Claude Code, Cursor or Codex in your app's repository. The agent puts the script tag where your framework defines the
+          page head, connects itself over MCP and adds a short section to your <code>AGENTS.md</code>, so later sessions know how to work
+          through threads. It asks before it changes anything. The same prompt with placeholders is at <a href="/setup.md">/setup.md</a>, and
+          <a href="/llms.txt">/llms.txt</a> points agents at these docs as Markdown.
+        </p>
+
+        <h2 id="agents">Let your coding agent answer threads (MCP)</h2>
+        <p>
+          With a workspace, a coding agent like Claude Code or Cursor can work through your threads: you click an element and write what should
+          change, the agent finds the code from the thread's page, selector and element text, makes the change, replies with what it did and
+          resolves the thread. You check it on the live element.
+        </p>
+        <p>Add your server to the agent. The first time it connects, it opens your server in the browser so you can sign in and approve it:</p>
+        <pre><code>claude mcp add --transport http openparley https://parley.example.com/mcp</code></pre>
+        <p>
+          In Claude Code, run <code>/mcp</code> and choose Authenticate. Other MCP clients: add <code>https://parley.example.com/mcp</code> as a
+          remote server (Streamable HTTP); clients that support MCP's OAuth sign-in find everything else themselves. Then ask the agent to "work through
+          the open OpenParley threads".
+        </p>
+        <p>
+          For an agent that can't sign in, create a token on the admin page under <strong>Agents</strong> instead. It's shown once, with the command:
+          <code>claude mcp add … --header "Authorization: Bearer opa_…"</code>.
+        </p>
+        <p>So later sessions know about OpenParley without being told, add this to your repository's <code>AGENTS.md</code> (or <code>CLAUDE.md</code>):</p>
+        <pre><code>{{AGENTS_SNIPPET}}</code></pre>
+        <table>
+          <tr><th>Tool</th><th>What it does</th></tr>
+          <tr><td><code>list_threads</code></td><td>Open threads (or resolved, or all), filtered by project or page, with URL, element and request</td></tr>
+          <tr><td><code>get_thread</code></td><td>One thread with the element's selector, text and attributes and the whole conversation</td></tr>
+          <tr><td><code>reply_to_thread</code></td><td>Replies as the agent</td></tr>
+          <tr><td><code>resolve_thread</code>, <code>reopen_thread</code></td><td>Changes the status, optionally with a reply</td></tr>
+        </table>
+        <p>
+          An agent acts for the person who connected it: its replies show the agent's name and "agent · <em>your name</em>". It can't start or delete
+          threads or change anything on the server. Revoke it on the admin page at any time. Agents don't count as members. A signed-in agent stays
+          signed in while it's in use; after 90 days without use it has to sign in again.
+        </p>
+
+        <h2 id="team">Bring your team</h2>
+        <p>
+          Product managers, designers, QA and anyone else who reviews the product use the same threads: they point at the real element instead of
+          sending screenshots, and their feedback lands where the developer's agent can act on it. Agent replies are marked as the agent's, for the
+          person who connected it.
+        </p>
+        <p>
+          On the admin page, enter a teammate's email under <strong>Members</strong> and press <strong>Invite</strong>. They get an email with a link
+          (it works once, for 7 days); without an address, or on a server that doesn't send email, you get the link to send yourself. After they
+          create their account, the admin page shows a link to each of your sites that switches OpenParley on in their browser, so it works even
+          with <code>data-launcher="members"</code>.
+        </p>
+        <p>Members can comment, reply and resolve. Admins also manage projects, sites and members.</p>
+        <p>
+          <strong>Mentions and notifications.</strong> Everyone has a mention name, like <code>@mia</code>, made from their name; change yours
+          on the admin page. Type <code>@</code> in a comment (or press the <strong>@</strong> button) and pick a teammate; mentions are
+          highlighted, yours in yellow. Agents can mention people by mention name or full name. On a server that sends email, people
+          get an email when they're mentioned and when someone replies to or resolves a thread they started, wrote in or were mentioned in. Updates
+          on a thread wait until it has been quiet for a minute and arrive as one email, and nobody is emailed about their own actions. Replies from
+          a coding agent notify people too. Everyone chooses under <strong>Notifications</strong> on the admin page: nothing, only mentions,
+          mentions and their threads (the default), or everything, for all projects or per project. Every email has a one-click unsubscribe link.
+        </p>
+
+        <h2 id="server">Self-hosting</h2>
+        <p>The sync server is a single Bun process with a SQLite file. One server is one organization.</p>
+        <pre><code>bun install
+bun run build                                  # builds the overlay the server hands out
+PUBLIC_URL=https://parley.example.com bun apps/sync/src/main.ts</code></pre>
+        <p>Or with Docker, from a checkout of the repository, behind your reverse proxy. The database lives in the <code>openparley</code> volume.</p>
+        <pre><code>docker build -f apps/sync/Dockerfile -t openparley-sync .
+docker run -d -p 127.0.0.1:3001:3001 -v openparley:/data \
+  -e PUBLIC_URL=https://parley.example.com -e TRUST_PROXY=1 openparley-sync
+docker logs &lt;container&gt;                        # the setup link</code></pre>
+        <p>On first start the server prints a one-time setup link. Open it to create the owner account. Then, on the admin page:</p>
+        <ol>
+          <li>
+            Create a project and list the site origins where it runs, for example <code>https://staging.example.com</code>, or a wildcard
+            such as <code>https://*.preview.example.com</code> for all subdomains. An admin can also add a site in one click from the sign-in
+            window the first time they sign in there.
+          </li>
+          <li>Copy the project's script tag into those sites.</li>
+          <li>Invite your team (PMs, designers, QA): by email, or copy the invite link. After accepting, they get a link to each site that switches OpenParley on for them.</li>
+        </ol>
+        <p>
+          Visitors see a <strong>Sign in</strong> button in the overlay. It opens a small window on your server; after signing in, the server
+          sends a session token back to the page, but only if the page's origin is on the project's list. This list is what stops another
+          site from copying your script tag and signing in your teammates: keep it to sites you run, and avoid wildcards on shared hosts
+          like <code>*.vercel.app</code>, which include other people's sites.
+        </p>
+        <table>
+          <tr><th>Variable</th><th>Default</th><th>Meaning</th></tr>
+          <tr><td><code>PORT</code></td><td><code>3001</code></td><td>Port to listen on</td></tr>
+          <tr><td><code>PUBLIC_URL</code></td><td><code>http://localhost:PORT</code></td><td>The URL people use to reach the server. Must match, or sign-in forms are rejected.</td></tr>
+          <tr><td><code>DATABASE_PATH</code></td><td><code>apps/sync/data/openparley.db</code> (Docker: <code>/data/openparley.db</code>)</td><td>SQLite file. Back this up.</td></tr>
+          <tr><td><code>TRUST_PROXY</code></td><td>off</td><td>Set to <code>1</code> behind a reverse proxy so rate limiting sees real client IPs.</td></tr>
+          <tr><td><code>SETUP_TOKEN</code></td><td>random</td><td>Fix the first-run setup token instead of generating one.</td></tr>
+          <tr><td><code>RESEND_API_KEY</code>, <code>MAIL_FROM</code></td><td>off</td><td>Send invites and notifications by email through <a href="https://resend.com">Resend</a>. Without them, the admin page shows the invite link to send yourself, and there are no notifications.</td></tr>
+          <tr><td><code>NOTIFY_QUIET_SECONDS</code></td><td><code>60</code></td><td>Updates on a thread are emailed once it has been quiet this long (at the latest after 10 minutes).</td></tr>
+          <tr><td><code>OVERLAY_DIR</code></td><td>the repo's build output</td><td>Folder with the built overlay files.</td></tr>
+        </table>
+
+        <h2 id="production">Only for your team, on production</h2>
+        <p>Add <code>data-launcher="members"</code> to the script tag from your admin page:</p>
+        <pre><code>&lt;script src="https://parley.example.com/openparley.js" data-project="KEY" data-launcher="members" defer&gt;&lt;/script&gt;</code></pre>
+        <ul>
+          <li>Visitors download a loader of under 1 KB, which checks a flag in their browser and stops. No overlay, no network requests.</li>
+          <li>A teammate switches it on once by visiting any page with <code>#openparley</code> at the end of the URL, or by opening a thread link a colleague shared, and signing in.</li>
+          <li>From then on, OpenParley loads in that browser on every visit. If the session expires, they see a Sign in button.</li>
+          <li><strong>Sign out</strong> in the toolbar switches it off again, as does visiting with <code>#openparley=off</code>.</li>
+        </ul>
+        <p>This controls who loads OpenParley, not who can read threads: that always requires signing in to your server. If your site can already tell employees apart, rendering the script tag only for them works too and costs customers nothing at all.</p>
+        <p>If your site sends a Content-Security-Policy, allow your OpenParley server in <code>script-src</code> and <code>connect-src</code>, and in <code>font-src</code> if you want the overlay in its own font (otherwise it uses the system font).</p>
+
+        <h2 id="options">Script options</h2>
+        <table>
+          <tr><th>Attribute</th><th>Meaning</th></tr>
+          <tr><td><code>data-project</code></td><td>Project key from your server. Turns on team mode.</td></tr>
+          <tr><td><code>data-server</code></td><td>Server URL. Defaults to wherever the script was loaded from.</td></tr>
+          <tr>
+            <td><code>data-launcher</code></td>
+            <td>
+              <code>always</code> (default) loads it for every visitor. <code>members</code> (team mode) loads it only in browsers where
+              someone signed in to your server; see <a href="#production">On production</a>. <code>auto</code> (links only) loads it once
+              someone opens a thread link or visits with <code>#openparley</code>, and keeps it on in that browser. <code>#openparley=off</code>
+              switches <code>members</code> and <code>auto</code> off again.
+            </td>
+          </tr>
+          <tr>
+            <td><code>data-shortcut</code></td>
+            <td>Key that starts a new thread from anywhere on the page. Default <code>c</code>; any single key, or <code>off</code>.</td>
+          </tr>
+          <tr>
+            <td><code>data-shortcut-priority</code></td>
+            <td>
+              <code>page</code> (default): if the page handles the key itself, OpenParley ignores it. <code>openparley</code>: OpenParley
+              handles the key first and the page never receives it.
+            </td>
+          </tr>
+          <tr>
+            <td><code>data-environment</code></td>
+            <td>
+              Team mode. Threads show in the environment they were made in; by default each origin (production, staging, localhost) is its
+              own. Give several origins the same label, e.g. <code>preview</code> on every preview deploy, to share their threads. Threads from
+              other environments are listed under <strong>View all</strong>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>data-revision</code></td>
+            <td>Team mode. Recorded on new threads, e.g. the deployed commit SHA, so a coding agent knows which code a thread was about.</td>
+          </tr>
+        </table>
+
+        <h2 id="npm">Using it from code</h2>
+        <pre><code>import { mount } from '@openparley/overlay';
+
+const overlay = mount({ project: 'abc123', server: 'https://parley.example.com', launcher: 'members' });
+// later, e.g. when your app unmounts
+overlay.destroy();</code></pre>
+        <p><code>mount</code> is safe to call more than once; it returns the existing instance.</p>
+
+        <h2 id="using">Using the overlay</h2>
+        <table>
+          <tr><th>Action</th><th>How</th></tr>
+          <tr><td>Show threads on the page</td><td>Click the parrot in the bottom-right corner</td></tr>
+          <tr><td>Start a thread</td><td><strong>Comment</strong>, or press <kbd>C</kbd> anywhere on the page (even with the overlay closed), then click an element</td></tr>
+          <tr><td>Post</td><td><strong>Post</strong>, or <kbd>⌘</kbd>/<kbd>Ctrl</kbd> + <kbd>Enter</kbd></td></tr>
+          <tr><td>Mention a teammate (team mode)</td><td>Type <kbd>@</kbd> (or press the <strong>@</strong> button) and a name, then pick with <kbd>↑</kbd>/<kbd>↓</kbd> and <kbd>Enter</kbd></td></tr>
+          <tr><td>Next / previous thread on the page</td><td><kbd>J</kbd> / <kbd>K</kbd>, or the arrows on a thread</td></tr>
+          <tr><td>Back out of anything, also while typing</td><td><kbd>Esc</kbd> (one step at a time)</td></tr>
+          <tr><td>Close a thread or an unsent new one</td><td>Click anywhere outside it</td></tr>
+          <tr><td>See every thread, including ones whose element is gone</td><td><strong>View all</strong> in the toolbar</td></tr>
+        </table>
+        <p>
+          Shortcuts never fire while you're typing in a field. <kbd>C</kbd> works anywhere; the others only while the overlay is open. If your
+          site or app already uses <kbd>C</kbd>, OpenParley stays out of its way: when the page handles the key itself (it calls
+          <code>preventDefault()</code> or stops the event), OpenParley ignores it. See <code>data-shortcut</code> to move or disable it.
+        </p>
+
+        <h2 id="anchors">How threads find their element</h2>
+        <p>
+          When you click an element, OpenParley records a CSS selector, its position in the page structure, its text, and identifying attributes
+          such as <code>id</code>, <code>data-testid</code> and <code>aria-label</code>. On later visits it scores candidate elements against all
+          of these. Small changes, like a renamed class or fixed typo, still match. If nothing matches convincingly, the thread shows as
+          “element not found” in the list instead of being pinned to the wrong thing.
+        </p>
+        <p>
+          Tip: <code>data-testid</code> attributes and stable <code>id</code>s make anchors almost unbreakable. Threads belong to a page by its
+          path; the query string doesn't matter. With a workspace they also belong to the environment they were made in (see
+          <code>data-environment</code>).
+        </p>
+
+        <h2 id="privacy">Links and privacy</h2>
+        <p>
+          The conversation in a link is stored after the <code>#</code>. Browsers never send that part to the server, so it doesn't show up in
+          your server logs or analytics. It is visible to anyone who has the link. Team-server links contain only an ID; the content stays on your
+          server and needs a sign-in.
+        </p>
+        <p>
+          Anyone can craft a link that shows a thread on your site, as with any link-based tool. Comments are always shown as plain text, never as
+          HTML or clickable links. On public production sites, use <code>data-launcher="members"</code> with a workspace, or
+          <code>data-launcher="auto"</code>.
+        </p>
+
+        <h2 id="links">Without a server</h2>
+        <p>For a quick try or a one-off review, OpenParley also runs without any server. Threads stay in the browser and travel inside links; there are no accounts, no team and no agent access.</p>
+        <p>Build the overlay once and host the file next to your site:</p>
+        <pre><code>bun install
+bun run build            # writes packages/overlay/dist/</code></pre>
+        <p>Host every file in <code>packages/overlay/dist</code> together: <code>openparley.js</code> is a small loader that fetches <code>openparley-app-&lt;hash&gt;.js</code> from the same folder. Cache the app and font files forever (their names change with every release) and the loader briefly.</p>
+        <pre><code>&lt;script src="/openparley.js" defer&gt;&lt;/script&gt;</code></pre>
+        <p>
+          Threads are saved in each visitor's browser (<code>localStorage</code>). <strong>Copy link</strong> on a thread produces a URL that
+          contains the whole conversation. When someone opens it, the thread is added to their browser and opened on the element. If they
+          reply, they copy a new link and send it back. Replies don't sync on their own; that's what a workspace is for.
+        </p>
+
+        <h2 id="limits">Limitations</h2>
+        <ul>
+          <li>Desktop browsers only for now. Touch devices can view threads but picking elements is not tuned for them.</li>
+          <li>Sites that route with the URL hash (<code>#/page</code>) are treated as a single page.</li>
+          <li>Elements inside iframes and closed shadow DOM can't be picked individually.</li>
+          <li>OpenParley checks for new replies every 15 seconds and when you return to the tab, not instantly.</li>
+          <li>Notifications go by email only; Slack and Teams aren't supported yet.</li>
+        </ul>
+      </article>
+    </div>
+  </body>
+</html>

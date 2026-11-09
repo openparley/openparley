@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Shortcut fixture</title>
+    <script>
+      // ?shortcut=…&priority=…&app=prevent|stop plays a host web app with its own "c" key.
+      const params = new URLSearchParams(location.search);
+      const script = document.createElement('script');
+      script.src = '/openparley.js';
+      if (params.has('shortcut')) script.dataset.shortcut = params.get('shortcut');
+      if (params.has('priority')) script.dataset.shortcutPriority = params.get('priority');
+      document.head.append(script);
+      window.appHandled = 0;
+      const app = params.get('app');
+      if (app) {
+        document.addEventListener('keydown', (event) => {
+          if (event.key !== 'c') return;
+          window.appHandled++;
+          if (app === 'prevent') event.preventDefault();
+          if (app === 'stop') event.stopPropagation();
+        });
+      }
+    </script>
+  </head>
+  <body style="font: 16px system-ui; padding: 40px">
+    <h1>Shortcut fixture</h1>
+    <p id="intro">Some text to point at.</p>
+    <input id="search" placeholder="Search" />
+    <div id="notes" contenteditable="true" style="border: 1px solid #ccc; min-height: 40px"></div>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "@openparley/cloud",
+  "version": "0.1.0",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/main.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@openparley/brand": "workspace:*",
+    "@openparley/sync": "workspace:*",
+    "hono": "^4.10.0"
+  },
+  "devDependencies": {
+    "@openparley/protocol": "workspace:*"
+  }
+}

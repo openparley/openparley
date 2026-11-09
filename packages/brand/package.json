@@ -1,0 +1,15 @@
+{
+  "name": "@openparley/brand",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./icon.svg": "./icon.svg",
+    "./logo-dark.svg": "./logo-dark.svg"
+  },
+  "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "5.3.0",
+    "@fontsource/instrument-serif": "5.3.0"
+  }
+}

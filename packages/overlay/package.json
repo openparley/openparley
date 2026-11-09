@@ -1,0 +1,25 @@
+{
+  "name": "@openparley/overlay",
+  "version": "0.1.0",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun scripts/build.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@medv/finder": "^4.0.2",
+    "preact": "^10.27.0"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.0",
+    "@openparley/protocol": "workspace:*",
+    "@openparley/brand": "workspace:*"
+  }
+}

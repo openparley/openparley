@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Team review fixture</title>
+    <script>
+      const script = document.createElement('script');
+      
+      const params = new URLSearchParams(location.search);
+      script.src = `${params.get('server') ?? 'http://localhost:4174'}/openparley.js`;
+      script.dataset.project = params.get('project');
+      script.dataset.launcher = params.get('launcher') ?? 'always';
+      for (const key of ['environment', 'revision']) if (params.get(key)) script.dataset[key] = params.get(key);
+      document.head.append(script);
+    </script>
+  </head>
+  <body style="font: 16px system-ui; padding: 40px">
+    <h1>Team review</h1>
+    <p id="intro">Welcome to the staging site.</p>
+    <button id="cta">Sign up</button>
+  </body>
+</html>

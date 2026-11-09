@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Team playground (dev) · OpenParley</title>
+    <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <link rel="preload" href="/brand/plus-jakarta-sans-latin.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/brand/fonts.css" />
+    <link rel="stylesheet" href="/site.css" />
+    <script>
+      // Dev only: loads the overlay from the local team server. `?launcher=members` tries production mode.
+      const script = document.createElement('script');
+      script.src = '{{SYNC_URL}}/openparley.js';
+      script.dataset.project = 'dev';
+      script.dataset.launcher = new URLSearchParams(location.search).get('launcher') ?? 'always';
+      script.defer = true;
+      document.head.append(script);
+    </script>
+  </head>
+  <body>
+    <header class="wrap nav">
+      <a class="brand" href="/"><img src="/brand/logo-light.svg" alt="OpenParley" width="165" height="40" /></a>
+      <a href="/team">Team playground</a>
+      <a href="/team?launcher=members">Members mode</a>
+      <a href="{{SYNC_URL}}/admin">Server admin</a>
+    </header>
+    <main>
+      <section class="playground">
+        <div class="wrap">
+          <h2>Team playground</h2>
+          <p>
+            This page talks to the dev team server at <code>{{SYNC_URL}}</code>. Sign in as <code>owner@openparley.test</code> or
+            <code>member@openparley.test</code>, password <code>openparley-dev</code>. Use a second browser profile or a private window to
+            be both at once.
+          </p>
+          <p>
+            <a href="/team?launcher=members">Members mode</a> loads nothing until you visit
+            <a href="/team?launcher=members#openparley">with <code>#openparley</code></a> and sign in, just like production.
+          </p>
+          <div class="mock">
+            <div class="product">
+              <div class="art" role="img" aria-label="Product photo"></div>
+              <h3>Field Notebook, dot grid</h3>
+              <p>192 pages of 100 g/m² paper that takes fountain pen ink without bleeding. Lies flat when open.</p>
+              <div class="price">€24<s>€29</s></div>
+              <button class="button" type="button" data-testid="add-to-cart">Add to cart</button>
+            </div>
+            <form class="form" onsubmit="return false">
+              <strong>Delivery</strong>
+              <label for="name">Full name</label>
+              <input id="name" autocomplete="off" placeholder="Ada Lovelace" />
+              <label for="postcode">Postcode</label>
+              <input id="postcode" autocomplete="off" placeholder="1012 AB" />
+              <button class="button" type="submit">Continue to payment</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

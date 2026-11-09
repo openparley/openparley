@@ -1,0 +1,14 @@
+{
+  "name": "@openparley/site",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "bun serve.ts",
+    "build": "bun build.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@openparley/brand": "workspace:*"
+  }
+}

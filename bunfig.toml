@@ -1,0 +1,3 @@
+# Never load .env / .env.local automatically: they hold real API keys (Resend, Polar, Porkbun), and
+# dev servers, tests and the e2e CLI must not pick those up. Scripts that need them use --env-file=.env.
+env = false
