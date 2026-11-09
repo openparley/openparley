@@ -10,7 +10,7 @@ import { hashPassword, randomToken, verifyPassword } from './crypto';
 import type { Mailer } from './mail';
 import type { Notifier } from './notify';
 import { RateLimiter } from './rate-limit';
-import { setupPrompt } from './setup-prompt';
+import { scriptTag, setupPrompt } from './setup-prompt';
 import { allows, isOrigin, isWildcard } from './origins';
 import {
   NOTIFY_LEVELS,
@@ -517,11 +517,18 @@ textarea{min-height:64px}button{font:inherit;font-weight:700;padding:8px 16px;bo
 button.secondary{background:#fff;color:#14181f;border-color:#cfc3a8}button.danger{background:#fff;color:#c2553c;border-color:#e8846b}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{margin:0}.muted{color:#5e6672}.inline{display:inline}.check{display:flex;gap:6px;align-items:center;font-weight:400}.check input{width:auto}
 .error{background:#fbe6df;border:1px solid #e8846b;color:#14181f;padding:10px 12px;border-radius:12px}.ok{background:#ddf1ea;border:1px solid #7cc7b2;padding:10px 12px;border-radius:12px}
+fieldset{border:0;padding:0;margin:12px 0 0}legend{font-weight:600;padding:0;margin:0 0 4px}fieldset .check{display:block;margin:4px 0}fieldset .check input{margin:0 6px 0 0}
 summary{cursor:pointer;margin:12px 0 0;color:#1f5a4c}details pre{margin:8px 0 0;word-break:normal;overflow-wrap:anywhere}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}table{width:100%;border-collapse:collapse}td{padding:8px 4px;border-top:1px solid #e7dec9;vertical-align:middle}
 `;
 
-const COPY_SCRIPT = `document.addEventListener('click', (event) => {
+const COPY_SCRIPT = `document.addEventListener('change', (event) => {
+  const id = event.target.dataset?.launcherFor;
+  if (!id) return;
+  for (const pre of [document.getElementById('snippet-' + id), document.getElementById('prompt-' + id)]) pre.textContent = pre.dataset[event.target.value];
+  document.querySelector('[data-launcher-note="' + id + '"]').hidden = event.target.value !== 'members';
+});
+document.addEventListener('click', (event) => {
   const button = event.target.closest('button[data-copy]');
   const source = button && document.getElementById(button.dataset.copy);
   if (!source) return;
@@ -909,8 +916,29 @@ function AdminPage(props: {
                 </textarea>
                 <button type="submit">Save</button>
               </form>
+              <fieldset>
+                <legend>Who loads OpenParley</legend>
+                <label class="check">
+                  <input type="radio" name={`launcher-${project.id}`} value="members" data-launcher-for={project.id} autocomplete="off" checked /> Only signed-in
+                  teammates <span class="muted">Recommended: everyone else downloads a 1 KB loader and nothing more.</span>
+                </label>
+                <label class="check">
+                  <input type="radio" name={`launcher-${project.id}`} value="always" data-launcher-for={project.id} autocomplete="off" /> Every visitor{' '}
+                  <span class="muted">For sites only your team opens, like local dev or a private staging.</span>
+                </label>
+              </fieldset>
+              <p class="muted" style="margin:8px 0 0" data-launcher-note={project.id}>
+                With signed-in teammates only, switch it on once in each browser: open the site with <code>#openparley</code> at the end of the URL
+                (your sites are linked at the top of this page) and sign in.
+              </p>
               <label>Snippet</label>
-              <pre id={`snippet-${project.id}`}>{`<script src="${publicUrl}/openparley.js" data-project="${project.id}" defer></script>`}</pre>
+              <pre
+                id={`snippet-${project.id}`}
+                data-members={scriptTag(publicUrl, project.id, 'members')}
+                data-always={scriptTag(publicUrl, project.id, 'always')}
+              >
+                {scriptTag(publicUrl, project.id, 'members')}
+              </pre>
               <button type="button" class="secondary" data-copy={`snippet-${project.id}`}>
                 Copy snippet
               </button>
@@ -924,7 +952,13 @@ function AdminPage(props: {
               </button>
               <details>
                 <summary>Show the prompt</summary>
-                <pre id={`prompt-${project.id}`}>{setupPrompt({ server: publicUrl, project: project.id })}</pre>
+                <pre
+                  id={`prompt-${project.id}`}
+                  data-members={setupPrompt({ server: publicUrl, project: project.id, launcher: 'members' })}
+                  data-always={setupPrompt({ server: publicUrl, project: project.id, launcher: 'always' })}
+                >
+                  {setupPrompt({ server: publicUrl, project: project.id, launcher: 'members' })}
+                </pre>
               </details>
               <form method="post" action={`/admin/projects/${project.id}`} class="row">
                 <input type="hidden" name="action" value="delete" />

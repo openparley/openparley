@@ -47,7 +47,7 @@
         <ol>
           <li><a href="https://cloud.openparley.dev/signup">Create a free workspace</a> (or <a href="#server">host your own</a>).</li>
           <li>On its admin page, create a project for your site and list the origins where it runs: production, staging, <code>http://localhost:5173</code>.</li>
-          <li>Paste the project's script tag into your site. With <code>data-launcher="members"</code> only signed-in teammates load OpenParley (see <a href="#production">On production</a>).</li>
+          <li>Paste the project's script tag into your site. By default it has <code>data-launcher="members"</code>: only signed-in teammates load OpenParley (see <a href="#production">On production</a>). For a site only your team opens, the admin page can generate one for every visitor instead.</li>
           <li><a href="#agents">Connect your coding agent</a> and <a href="#team">invite your team</a>.</li>
         </ol>
         <p>Then press <kbd>C</kbd> on your site, click an element and write. That's a thread.</p>
@@ -154,7 +154,7 @@ docker logs &lt;container&gt;                        # the setup link</code></pr
         </table>
 
         <h2 id="production">Only for your team, on production</h2>
-        <p>Add <code>data-launcher="members"</code> to the script tag from your admin page:</p>
+        <p>The script tag on your admin page has <code>data-launcher="members"</code> unless you chose <strong>Every visitor</strong> there:</p>
         <pre><code>&lt;script src="https://parley.example.com/openparley.js" data-project="KEY" data-launcher="members" defer&gt;&lt;/script&gt;</code></pre>
         <ul>
           <li>Visitors download a loader of under 1 KB, which checks a flag in their browser and stops. No overlay, no network requests.</li>

@@ -153,9 +153,12 @@ describe('admin', () => {
     expect(html).toContain(tag);
     expect(html).toContain(`claude mcp add --scope project --transport http openparley ${PUBLIC_URL}/mcp`);
     expect(html).not.toContain('YOUR_PROJECT_KEY');
+    // The toggle swaps in the every-visitor variant of both the snippet and the prompt.
+    expect(html).toContain(`data-always="&lt;script src=&quot;${PUBLIC_URL}/openparley.js&quot; data-project=&quot;${project.id}&quot; defer&gt;&lt;/script&gt;"`);
+    expect(html).toContain('Open the app and sign in from the OpenParley button');
     // The copy button's script must carry this response's CSP nonce, or the browser blocks it.
     const nonce = res.headers.get('content-security-policy')!.match(/'nonce-([^']+)'/)![1];
-    expect(html).toContain(`<script nonce="${nonce}">document.addEventListener('click'`);
+    expect(html).toContain(`<script nonce="${nonce}">document.addEventListener(`);
   });
 
   test('members cannot manage projects', async () => {
