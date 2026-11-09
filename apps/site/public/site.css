@@ -119,6 +119,12 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 15px; }
   .docs td:nth-child(2):not(:last-child)::before { content: 'Default: '; color: var(--muted); }
 }
 kbd { font: 700 0.8em/1 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--line-strong); border-bottom-width: 2px; background: var(--surface); color: var(--ink); }
+.touch-only { display: none; }
+@media (hover: none) {
+  .touch-only { display: inline; }
+  .mouse-only { display: none; }
+}
+
 /* Scroll story (homepage). The illustrations are site-only mocks of the overlay, aria-hidden.
    The rules without `html.story` are the end state: what no-JS and reduced-motion visitors see.
    story.js adds `story` and plays each beat by adding `play` / `on` / `data-step`. */
