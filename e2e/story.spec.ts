@@ -119,7 +119,7 @@ test.describe('with motion', () => {
     await expect(how).toHaveAttribute('data-step', '2');
     await expect(how).not.toHaveClass(/\bauto\b/);
     await expect(page.getByRole('button', { name: 'Your agent picks it up' })).toHaveAttribute('aria-current', '');
-    await expect(page.locator('.step.on .step-time')).toHaveCSS('opacity', '0');
+    await expect(page.locator('.step.on .step-time')).toHaveCSS('animation-name', 'none');
   });
 
   test('the team section drops one pin per role and keeps them', async ({ page }) => {

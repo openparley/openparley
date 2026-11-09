@@ -6,7 +6,7 @@
   const how = document.querySelector('.how');
 
   // How it works: the steps take turns in the frame until the visitor picks one. The active step's
-  // timer bar (a CSS animation) is the clock, so hover, focus and being off screen pause it in CSS.
+  // invisible timer (a CSS animation) is the clock, so hover, focus and being off screen pause it in CSS.
   if (how) {
     const steps = [...how.querySelectorAll('.step')];
     let current = 0;
