@@ -5,6 +5,8 @@ import { hashToken, randomToken } from '@openparley/sync';
 
 export type TenantStatus = 'active' | 'suspended';
 
+const ABANDONED_SIGNUP_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 export interface Tenant {
   slug: string;
   name: string;
@@ -282,6 +284,11 @@ export class ControlStore {
 
   createSignup(input: Omit<Signup, 'id' | 'createdAt' | 'tenantSlug'>): Signup {
     const signup: Signup = { ...input, id: randomToken(16), createdAt: Date.now(), tenantSlug: null };
+    // The privacy policy promises this retention for sign-ups that never became a workspace. The margin
+    // past expiry leaves room for a late Polar webhook to still find its sign-up.
+    this.db
+      .query('DELETE FROM signups WHERE tenant_slug IS NULL AND expires_at <= $cutoff')
+      .run({ cutoff: signup.createdAt - ABANDONED_SIGNUP_RETENTION_MS });
     this.db
       .query(
         `INSERT INTO signups (id, slug, name, email, plan, browser_hash, created_at, expires_at, tenant_slug)

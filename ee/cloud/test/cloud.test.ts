@@ -189,6 +189,20 @@ describe('lifecycle', () => {
     expect(cloud.stats().open).toBe(2);
   });
 
+  test('sign-ups that never became a workspace are deleted 30 days after they expire', () => {
+    const { config } = makeCloud();
+    const control = new ControlStore(config.dataDir);
+    const day = 24 * 60 * 60 * 1000;
+    const signup = (slug: string, expiresAt: number) =>
+      control.createSignup({ slug, name: slug, email: `${slug}@example.com`, plan: 'free', browserHash: 'x', expiresAt });
+    const old = signup('old', Date.now() - 31 * day);
+    const recent = signup('recent', Date.now() - 29 * day);
+    signup('next', Date.now() + day);
+    expect(control.findSignup(old.id)).toBeNull();
+    expect(control.findSignup(recent.id)).not.toBeNull();
+    control.close();
+  });
+
   test('limits come from the control plane and apply live', async () => {
     const { cloud } = makeCloud();
     const acme = await workspace(cloud, 'acme', { maxProjects: 1 });
