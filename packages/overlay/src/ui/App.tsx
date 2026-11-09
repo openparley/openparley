@@ -7,7 +7,7 @@ import type { OverlayStore, StoreState } from '../store';
 import { listenForShortcut, type ShortcutPriority } from '../shortcut';
 import type { Tracker } from '../tracker';
 import { Composer } from './Composer';
-import { Floating } from './Floating';
+import { Floating, isSheet } from './Floating';
 import { copyText, describeElement, environmentLabel } from './format';
 import { KEYS } from './keys';
 import { Launcher, type LauncherProps } from './Launcher';
@@ -155,7 +155,8 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
     const match = resolutions.get(id);
     if (match) {
       scrollTo.current = null;
-      match.element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // A bottom sheet would cover the centre; Floating scrolls the element clear of it instead.
+      if (!isSheet()) match.element.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }, [resolutions, view]);
 
