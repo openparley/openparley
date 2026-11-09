@@ -42,7 +42,7 @@
         <a href="#server">Self-hosting</a>
         <a href="#production">On production</a>
         <a href="#options">Script options</a>
-        <a href="#npm">Using npm</a>
+        <a href="#npm">Using npm (soon)</a>
         <a href="#using">Using the overlay</a>
         <a href="#anchors">How elements are found</a>
         <a href="#privacy">Links and privacy</a>
@@ -130,10 +130,12 @@
 
         <h2 id="server">Self-hosting</h2>
         <p>The sync server is a single Bun process with a SQLite file. One server is one organization.</p>
-        <pre><code>bun install
+        <pre><code>git clone https://github.com/openparley/openparley
+cd openparley
+bun install
 bun run build                                  # builds the overlay the server hands out
 PUBLIC_URL=https://parley.example.com bun apps/sync/src/main.ts</code></pre>
-        <p>Or with Docker, from a checkout of the repository, behind your reverse proxy. The database lives in the <code>openparley</code> volume.</p>
+        <p>Or with Docker, from the same checkout, behind your reverse proxy. The database lives in the <code>openparley</code> volume.</p>
         <pre><code>docker build -f apps/sync/Dockerfile -t openparley-sync .
 docker run -d -p 127.0.0.1:3001:3001 -v openparley:/data \
   -e PUBLIC_URL=https://parley.example.com -e TRUST_PROXY=1 openparley-sync
@@ -217,7 +219,8 @@ docker logs &lt;container&gt;                        # the setup link</code></pr
           </tr>
         </table>
 
-        <h2 id="npm">Using it from code</h2>
+        <h2 id="npm">Using it from code (coming soon)</h2>
+        <p>The <code>@openparley/overlay</code> package isn't on npm yet. Until it is, use the script tag. Once published, it works like this:</p>
         <pre><code>import { mount } from '@openparley/overlay';
 
 const overlay = mount({ project: 'abc123', server: 'https://parley.example.com', launcher: 'members' });
@@ -271,7 +274,9 @@ overlay.destroy();</code></pre>
         <h2 id="links">Without a server</h2>
         <p>For a quick try or a one-off review, OpenParley also runs without any server. Threads stay in the browser and travel inside links; there are no accounts, no team and no agent access.</p>
         <p>Build the overlay once and host the file next to your site:</p>
-        <pre><code>bun install
+        <pre><code>git clone https://github.com/openparley/openparley
+cd openparley
+bun install
 bun run build            # writes packages/overlay/dist/</code></pre>
         <p>Host every file in <code>packages/overlay/dist</code> together: <code>openparley.js</code> is a small loader that fetches <code>openparley-app-&lt;hash&gt;.js</code> from the same folder. Cache the app and font files forever (their names change with every release) and the loader briefly.</p>
         <pre><code>&lt;script src="/openparley.js" defer&gt;&lt;/script&gt;</code></pre>
