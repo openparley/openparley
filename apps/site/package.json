@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "bun serve.ts",
     "build": "bun build.ts",
+    "og": "bun og.ts",
     "test": "bun test"
   },
   "devDependencies": {

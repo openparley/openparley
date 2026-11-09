@@ -506,6 +506,8 @@ test('brand: logo, icon and Plus Jakarta Sans on the site and in the overlay', a
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'OpenParley' }).getByRole('img', { name: 'OpenParley' })).toBeVisible();
   expect(await page.locator('link[rel=icon]').getAttribute('href')).toBe('/brand/favicon.svg');
+  expect(await page.locator('meta[property="og:image"]').getAttribute('content')).toBe('https://openparley.dev/og.png');
+  expect((await page.request.get('/og.png')).headers()['content-type']).toBe('image/png');
   await expect.poll(() => page.evaluate(() => document.fonts.check("16px 'Plus Jakarta Sans'"))).toBe(true);
   expect(await page.locator('h1').evaluate((el) => getComputedStyle(el).fontFamily)).toContain('Plus Jakarta Sans');
 
