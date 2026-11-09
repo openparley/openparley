@@ -548,7 +548,7 @@ export function Page({ title, aside, children }: { title: string; aside?: Child;
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="referrer" content="same-origin" />
         <title>{title} · OpenParley</title>
-        <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
         <style dangerouslySetInnerHTML={{ __html: STYLE }} />
       </head>

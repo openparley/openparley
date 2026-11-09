@@ -76,7 +76,7 @@ export function createApp({ db, config, setupToken, mailer = config.mail ? resen
     const file = Bun.file(path);
     return c.body(await file.arrayBuffer(), 200, { 'content-type': file.type, 'cache-control': 'public, max-age=86400' });
   });
-  app.get('/favicon.ico', (c) => c.redirect('/brand/icon.svg', 301));
+  app.get('/favicon.ico', (c) => c.redirect('/brand/favicon.svg', 301));
 
   // CORS: only origins registered on a project may call the API from a browser.
   app.use('/api/*', async (c, next) => {

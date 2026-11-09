@@ -44,6 +44,8 @@ export const BRAND_FILES: Record<string, string> = {
   'logo-light.svg': join(import.meta.dir, 'logo-light.svg'),
   'logo-dark.svg': join(import.meta.dir, 'logo-dark.svg'),
   'icon.svg': join(import.meta.dir, 'icon.svg'),
+  // The icon cropped to its shape, so it fills a 16px tab instead of floating in padding.
+  'favicon.svg': join(import.meta.dir, 'favicon.svg'),
   // iOS ignores SVG icons and fills transparency with black, hence a padded PNG on white.
   'apple-touch-icon.png': join(import.meta.dir, 'apple-touch-icon.png'),
   [FONT_LICENSE.name]: FONT_LICENSE.path,

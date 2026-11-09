@@ -505,7 +505,7 @@ test.describe('global comment shortcut', () => {
 test('brand: logo, icon and Plus Jakarta Sans on the site and in the overlay', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('link', { name: 'OpenParley' }).getByRole('img', { name: 'OpenParley' })).toBeVisible();
-  expect(await page.locator('link[rel=icon]').getAttribute('href')).toBe('/brand/icon.svg');
+  expect(await page.locator('link[rel=icon]').getAttribute('href')).toBe('/brand/favicon.svg');
   await expect.poll(() => page.evaluate(() => document.fonts.check("16px 'Plus Jakarta Sans'"))).toBe(true);
   expect(await page.locator('h1').evaluate((el) => getComputedStyle(el).fontFamily)).toContain('Plus Jakarta Sans');
 

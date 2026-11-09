@@ -58,7 +58,7 @@ export function controlPlane({ cloud, config, polar }: Options) {
     const file = Bun.file(path);
     return c.body(await file.arrayBuffer(), 200, { 'content-type': file.type, 'cache-control': 'public, max-age=86400' });
   });
-  app.get('/favicon.ico', (c) => c.redirect('/brand/icon.svg', 301));
+  app.get('/favicon.ico', (c) => c.redirect('/brand/favicon.svg', 301));
 
   // Server-to-server: authenticated by its signature, not by cookies, so outside the CSRF check.
   app.post('/webhooks/polar', async (c) => {
@@ -394,7 +394,7 @@ function Page({ title, head, children }: { title: string; head?: Child; children
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="referrer" content="same-origin" />
         <title>{title} · OpenParley</title>
-        <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
         <style dangerouslySetInnerHTML={{ __html: STYLE }} />
         {head}
