@@ -124,6 +124,8 @@ export function isThread(value: unknown): value is Thread {
   return (
     isString(value.id, 64, 1) &&
     isString(value.page, 2048, 1) &&
+    (value.search === undefined || (isString(value.search, LIMITS.search, 2) && value.search.startsWith('?'))) &&
+    (value.hash === undefined || (isString(value.hash, LIMITS.hash, 2) && /^#[/!]/.test(value.hash))) &&
     (value.environment === undefined || isString(value.environment, LIMITS.environment, 1)) &&
     (value.revision === undefined || isString(value.revision, LIMITS.revision, 1)) &&
     isAnchor(value.anchor) &&

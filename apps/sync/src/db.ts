@@ -142,6 +142,11 @@ const MIGRATIONS = [
   ALTER TABLE users ADD COLUMN handle TEXT;
   CREATE UNIQUE INDEX users_handle ON users(handle);
   `,
+  `
+  ALTER TABLE threads ADD COLUMN search TEXT;
+  ALTER TABLE threads ADD COLUMN hash TEXT;
+  CREATE INDEX threads_environment ON threads(project_id, environment);
+  `,
 ];
 
 export function openDatabase(path: string): Database {

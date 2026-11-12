@@ -500,10 +500,18 @@ export class Repo {
 
   // --- threads -----------------------------------------------------------
 
-  listThreads(projectId: string, page: string): Thread[] {
+  /**
+   * What the overlay shows: every thread in the environment (and those from before environments, which
+   * show everywhere), plus the threads on `page` made in other environments.
+   */
+  listThreads(projectId: string, scope: { environment?: string; page?: string }): Thread[] {
     const rows = this.db
-      .query<ThreadRow, { projectId: string; page: string }>(`${THREAD_SELECT} WHERE t.project_id = $projectId AND t.page = $page ORDER BY t.created_at, t.rowid`)
-      .all({ projectId, page });
+      .query<ThreadRow, { projectId: string; environment: string | null; page: string | null }>(
+        `${THREAD_SELECT} WHERE t.project_id = $projectId
+           AND (($environment IS NOT NULL AND (t.environment = $environment OR t.environment IS NULL)) OR t.page = $page)
+         ORDER BY t.created_at, t.rowid`,
+      )
+      .all({ projectId, environment: scope.environment ?? null, page: scope.page ?? null });
     return this.withComments(rows);
   }
 
@@ -517,6 +525,8 @@ export class Repo {
   createThread(input: {
     projectId: string;
     page: string;
+    search?: string | null;
+    hash?: string | null;
     anchor: Anchor;
     authorId: string;
     body: string;
@@ -528,13 +538,15 @@ export class Repo {
     this.db.transaction(() => {
       this.db
         .query(
-          `INSERT INTO threads (id, project_id, page, environment, revision, anchor, status, status_at, author_id, created_at)
-           VALUES ($id, $projectId, $page, $environment, $revision, $anchor, 'open', $now, $authorId, $now)`,
+          `INSERT INTO threads (id, project_id, page, search, hash, environment, revision, anchor, status, status_at, author_id, created_at)
+           VALUES ($id, $projectId, $page, $search, $hash, $environment, $revision, $anchor, 'open', $now, $authorId, $now)`,
         )
         .run({
           id,
           projectId: input.projectId,
           page: input.page,
+          search: input.search ?? null,
+          hash: input.hash ?? null,
           environment: input.environment ?? null,
           revision: input.revision ?? null,
           anchor: JSON.stringify(input.anchor),
@@ -801,6 +813,8 @@ export class Repo {
     return rows.map((row) => ({
       id: row.id,
       page: row.page,
+      ...(row.search !== null && { search: row.search }),
+      ...(row.hash !== null && { hash: row.hash }),
       ...(row.environment !== null && { environment: row.environment }),
       ...(row.revision !== null && { revision: row.revision }),
       anchor: JSON.parse(row.anchor) as Anchor,
@@ -817,6 +831,8 @@ interface ThreadRow {
   id: string;
   project_id: string;
   page: string;
+  search: string | null;
+  hash: string | null;
   environment: string | null;
   revision: string | null;
   anchor: string;
@@ -837,5 +853,5 @@ interface CommentRow {
   author_name: string;
 }
 
-const THREAD_SELECT = `SELECT t.id, t.project_id, t.page, t.environment, t.revision, t.anchor, t.status, t.status_at, t.created_at, u.id AS author_id, u.name AS author_name
+const THREAD_SELECT = `SELECT t.id, t.project_id, t.page, t.search, t.hash, t.environment, t.revision, t.anchor, t.status, t.status_at, t.created_at, u.id AS author_id, u.name AS author_name
   FROM threads t JOIN users u ON u.id = t.author_id`;

@@ -39,8 +39,15 @@ export interface Comment {
 
 export interface Thread {
   id: string;
-  /** Normalised pathname of the page the thread belongs to. */
+  /** Normalised pathname of the page the thread belongs to. Threads are grouped by it. */
   page: string;
+  /**
+   * The page's query string when the thread was made, without tracking parameters and sorted by key
+   * (`?id=2&tab=specs`). Absent when there was none, and on threads from before it was recorded.
+   */
+  search?: string;
+  /** A route hash (`#/settings`, `#!/x`) when the thread was made. Plain `#section` hashes aren't kept. */
+  hash?: string;
   /**
    * Where it was made: the page's origin (`https://staging.example.com`), or the site's
    * `data-environment` label. Threads show in their own environment by default. Absent on threads
@@ -68,6 +75,8 @@ export const LIMITS = {
   agentName: 40,
   environment: 200,
   revision: 100,
+  search: 2000,
+  hash: 1000,
 } as const;
 
 // --- Sync HTTP API -------------------------------------------------------
@@ -99,6 +108,8 @@ export interface ThreadResponse {
 export interface CreateThreadRequest {
   project: string;
   page: string;
+  search?: string;
+  hash?: string;
   anchor: Anchor;
   body: string;
   /** The site's `data-environment`; without it the server uses the request's Origin. */

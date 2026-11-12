@@ -54,6 +54,30 @@ describe('threads API', () => {
     expect(list.threads.map((t) => t.environment)).toEqual([SITE, 'preview']);
   });
 
+  test('lists the whole environment plus this page from other environments; keeps query and route hash', async () => {
+    const { owner } = harness();
+    const { project, call } = await owner();
+    const post = (body: Record<string, unknown>) => call('POST', '/threads', { project: project.id, anchor, body: 'x', ...body });
+    const created = ((await (await post({ page: '/product', search: '?id=2', hash: '#/specs' })).json()) as { thread: Thread }).thread;
+    expect(created).toMatchObject({ page: '/product', search: '?id=2', hash: '#/specs' });
+    expect(isThread(created)).toBe(true);
+    await post({ page: '/' });
+    await post({ page: '/', environment: 'production' });
+    await post({ page: '/pricing', environment: 'production' });
+
+    const list = async (query: string) =>
+      ((await (await call('GET', `/threads?project=${project.id}&${query}`)).json()) as { threads: Thread[] }).threads.map((t) => `${t.environment} ${t.page}`);
+    expect(await list(`environment=${encodeURIComponent(SITE)}&page=/`)).toEqual([`${SITE} /product`, `${SITE} /`, 'production /']);
+    expect(await list('environment=production&page=/product')).toEqual([`${SITE} /product`, 'production /', 'production /pricing']);
+    // What overlays from before environment-wide lists ask for.
+    expect(await list('page=/')).toEqual([`${SITE} /`, 'production /']);
+    expect((await call('GET', `/threads?project=${project.id}`)).status).toBe(400);
+
+    expect((await post({ page: '/', search: 'id=2' })).status).toBe(400);
+    expect((await post({ page: '/', hash: '#section' })).status).toBe(400);
+    expect((await post({ page: '/', search: `?${'x'.repeat(2000)}` })).status).toBe(400);
+  });
+
   test('rejects bad input with a message', async () => {
     const { owner } = harness();
     const { project, call } = await owner();

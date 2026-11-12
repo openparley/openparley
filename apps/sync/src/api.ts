@@ -4,7 +4,7 @@ import type { z } from 'zod';
 import type { Limits } from './config';
 import type { Notifier } from './notify';
 import type { Repo, User } from './repo';
-import { addCommentSchema, createThreadSchema, pageSchema, updateThreadSchema } from './validation';
+import { addCommentSchema, createThreadSchema, environmentSchema, pageSchema, updateThreadSchema } from './validation';
 
 type Env = { Variables: { user: User; token: string } };
 
@@ -37,12 +37,17 @@ export function apiRoutes(repo: Repo, limits: Limits, notifier: Notifier): Hono<
     return c.body(null, 204);
   });
 
+  // `environment`: all its threads, on every page. `page`: that page's threads from every environment.
+  // Overlays before environment-wide lists send only `page`.
   api.get('/threads', (c) => {
     const projectId = c.req.query('project') ?? '';
-    const page = pageSchema.safeParse(c.req.query('page'));
-    if (!page.success) return c.json({ error: 'A valid page path is required.' }, 400);
+    const page = pageSchema.optional().safeParse(c.req.query('page'));
+    const environment = environmentSchema.optional().safeParse(c.req.query('environment'));
+    if (!page.success || !environment.success || (!page.data && !environment.data)) {
+      return c.json({ error: 'A valid environment or page path is required.' }, 400);
+    }
     if (!repo.findProject(projectId)) return c.json({ error: 'Unknown project.' }, 404);
-    return c.json<ThreadsResponse>({ threads: repo.listThreads(projectId, page.data) });
+    return c.json<ThreadsResponse>({ threads: repo.listThreads(projectId, { environment: environment.data, page: page.data }) });
   });
 
   api.post('/threads', async (c) => {
@@ -68,6 +73,8 @@ export function apiRoutes(repo: Repo, limits: Limits, notifier: Notifier): Hono<
     const id = repo.createThread({
       projectId: input.data.project,
       page: input.data.page,
+      search: input.data.search ?? null,
+      hash: input.data.hash ?? null,
       anchor: input.data.anchor,
       authorId: c.get('user').id,
       body: input.data.body,

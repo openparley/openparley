@@ -95,6 +95,7 @@ test('the thread counter starts at the existing number of threads', () => {
   db.exec(`INSERT INTO users (id, email, name, password_hash, role, created_at) VALUES ('u', 'a@b.c', 'A', 'x', 'owner', 0);
     INSERT INTO projects VALUES ('p', 'P', '[]', 0);
     INSERT INTO threads (id, project_id, page, anchor, status, status_at, author_id, created_at) VALUES ('t1', 'p', '/', '{}', 'open', 0, 'u', 0), ('t2', 'p', '/', '{}', 'open', 0, 'u', 0);
+    DROP INDEX threads_environment; ALTER TABLE threads DROP COLUMN search; ALTER TABLE threads DROP COLUMN hash;
     DROP INDEX users_handle; ALTER TABLE users DROP COLUMN handle;
     DROP TABLE notifications; DROP TABLE notification_channels; DROP TABLE notification_project_levels; DROP TABLE notification_settings;
     DROP TABLE counters; DROP TABLE oauth_codes; DROP TABLE agent_tokens; DROP TABLE oauth_clients; ALTER TABLE comments DROP COLUMN agent; ALTER TABLE threads DROP COLUMN environment; ALTER TABLE threads DROP COLUMN revision; ALTER TABLE invites DROP COLUMN email; PRAGMA user_version = 1;`);

@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { isOrigin, originMatches, parseOriginEntry } from '../src/origins';
+import { isOrigin, originMatches, parseOriginEntry, threadUrls } from '../src/origins';
 
 const entry = (line: string) => {
   const parsed = parseOriginEntry(line);
@@ -53,4 +53,11 @@ test('isOrigin only accepts what a browser sends as Origin', () => {
   for (const bad of ['', 'null', 'https://shop.example.com/', 'https://shop.example.com:443', 'javascript:alert(1)', 'https://*.example.com']) {
     expect(isOrigin(bad)).toBe(false);
   }
+});
+
+test('thread URLs include the query and route hash the thread was made on', () => {
+  const thread = { page: '/product', search: '?id=2', hash: '#/specs' };
+  expect(threadUrls({ ...thread, environment: 'https://shop.test' }, [])).toEqual(['https://shop.test/product?id=2#/specs']);
+  expect(threadUrls({ ...thread, environment: 'preview' }, ['https://a.test', 'https://*.b.test'])).toEqual(['https://a.test/product?id=2#/specs']);
+  expect(threadUrls({ page: '/' }, ['https://a.test'])).toEqual(['https://a.test/']);
 });

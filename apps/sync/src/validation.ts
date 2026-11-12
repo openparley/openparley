@@ -18,12 +18,16 @@ export const anchorSchema = z.object({
 
 export const pageSchema = z.string().startsWith('/').max(2048);
 
+export const environmentSchema = z.string().trim().min(1).max(LIMITS.environment);
+
 export const createThreadSchema = z.object({
   project: z.string().min(1).max(64),
   page: pageSchema,
+  search: z.string().startsWith('?').min(2).max(LIMITS.search).optional(),
+  hash: z.string().regex(/^#[/!]/, 'Only route hashes are kept.').max(LIMITS.hash).optional(),
   anchor: anchorSchema,
   body,
-  environment: z.string().trim().min(1).max(LIMITS.environment).optional(),
+  environment: environmentSchema.optional(),
   revision: z.string().trim().min(1).max(LIMITS.revision).optional(),
 });
 

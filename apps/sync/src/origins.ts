@@ -54,7 +54,13 @@ export function originMatches(entry: string, origin: string): boolean {
 
 export const allows = (entries: string[], origin: string) => entries.some((entry) => originMatches(entry, origin));
 
+type Located = { page: string; search?: string; hash?: string; environment?: string };
+
+/** The page's path with the query and route hash it was made on. */
+export const threadPath = (thread: Located) => thread.page + (thread.search ?? '') + (thread.hash ?? '');
+
 /** Where a thread can be opened: the origin it was made on, else the page on every listed (non-wildcard) site of its project. */
-export function threadUrls(thread: { page: string; environment?: string }, origins: readonly string[]): string[] {
-  return thread.environment?.includes('://') ? [`${thread.environment}${thread.page}`] : origins.filter((origin) => !isWildcard(origin)).map((origin) => `${origin}${thread.page}`);
+export function threadUrls(thread: Located, origins: readonly string[]): string[] {
+  const path = threadPath(thread);
+  return thread.environment?.includes('://') ? [`${thread.environment}${path}`] : origins.filter((origin) => !isWildcard(origin)).map((origin) => `${origin}${path}`);
 }

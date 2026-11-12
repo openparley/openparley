@@ -41,7 +41,7 @@ const TOOLS = {
       properties: {
         status: { type: 'string', enum: ['open', 'resolved', 'all'], description: 'Default: open' },
         project: { type: 'string', description: 'Project id, to list one site only' },
-        page: { type: 'string', description: 'Pathname, e.g. /pricing' },
+        page: { type: 'string', description: 'Pathname without the query, e.g. /pricing; matches every query string on it' },
         environment: { type: 'string', description: 'Only threads made in this environment, e.g. http://localhost:3000 or a data-environment label' },
         limit: { type: 'integer', minimum: 1, maximum: 100, description: 'Default: 50' },
       },
@@ -301,6 +301,8 @@ function detail(thread: StoredThread, projects: Map<string, Project>) {
     status: thread.status,
     project: project ? { id: project.id, name: project.name } : null,
     page: thread.page,
+    ...(thread.search && { search: thread.search }),
+    ...(thread.hash && { hash: thread.hash }),
     urls: urlsFor(thread, project),
     ...made(thread),
     element: { ...element(thread), path: thread.anchor.path, attributes: thread.anchor.attrs },

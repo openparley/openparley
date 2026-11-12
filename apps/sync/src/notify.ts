@@ -1,6 +1,6 @@
 import type { Thread, ThreadStatus } from '@openparley/protocol';
 import { mentionedIds } from './mentions';
-import { threadUrls } from './origins';
+import { threadPath, threadUrls } from './origins';
 import type { NotifyLevel, PendingNotification, Repo, User } from './repo';
 
 // Notifications are channel-agnostic: events are queued per recipient in the database (so a
@@ -202,11 +202,12 @@ export class Notifier {
       });
       if (events.length === 0) continue;
       const project = this.repo.findProject(thread.projectId);
-      const url = threadUrls(thread, project?.origins ?? [])[0];
+      // The share hash takes the URL's hash, so a route hash is left out; the overlay goes on to the thread's own URL.
+      const url = threadUrls({ ...thread, hash: undefined }, project?.origins ?? [])[0];
       threads.push({
         id: thread.id,
         project: project?.name ?? 'OpenParley',
-        page: thread.page,
+        page: threadPath(thread),
         element: thread.anchor.text ? `"${truncate(thread.anchor.text, 60)}"` : `<${thread.anchor.tag}>`,
         status: thread.status,
         url: url ? `${url}#parley=t.${thread.id}` : null,
