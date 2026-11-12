@@ -7,7 +7,7 @@ import { gzipSync } from 'node:zlib';
 const LOADER_BUDGET = 2 * 1024;
 // Raised from 24 KB (brand icon, J/K navigation), then from 28 KB (mentions). Only signed-in teammates
 // download the app; the loader is what every visitor pays for.
-const APP_BUDGET = 30 * 1024;
+const APP_BUDGET = 32 * 1024;
 const outdir = new URL('../dist', import.meta.url).pathname;
 // The stylesheet is imported as text and injected into the shadow root. Only whitespace and
 // comments are stripped: Bun's CSS minifier rounds large integers (z-index 2147483647 -> 2147480000).

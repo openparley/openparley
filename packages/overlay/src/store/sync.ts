@@ -10,6 +10,7 @@ import type {
   ThreadStatus,
 } from '@openparley/protocol';
 import { memberKey, normalizeServer, setFlag } from '../gate';
+import type { PageRef } from '../page';
 import { BaseStore, type StoreState } from './base';
 
 const POLL_MS = 15_000;
@@ -42,7 +43,7 @@ export class SyncStore extends BaseStore {
   private readonly environment: string;
   private readonly customEnvironment: string | undefined;
   private readonly revision: string | undefined;
-  /** Every thread on the page, from all environments. */
+  /** This environment's threads on every page, plus other environments' on this base path. */
   private all: Thread[] = [];
   private loadSeq = 0;
   private pollTimer: ReturnType<typeof setInterval> | undefined;
@@ -70,7 +71,7 @@ export class SyncStore extends BaseStore {
   setPage(page: string): void {
     if (page === this.page) return;
     this.page = page;
-    this.setState(this.split([]));
+    this.setState(this.split(this.all));
     if (this.state.status === 'ready') void this.load();
   }
 
@@ -130,11 +131,13 @@ export class SyncStore extends BaseStore {
     }
   }
 
-  async createThread(page: string, anchor: Anchor, body: string): Promise<Thread> {
+  async createThread(where: PageRef, anchor: Anchor, body: string): Promise<Thread> {
     // Without a custom environment the server records the request's Origin, which the browser sets.
     const { thread } = await this.request<ThreadResponse>('POST', '/api/threads', {
       project: this.project,
-      page,
+      page: where.page,
+      search: where.search,
+      hash: where.hash,
       anchor,
       body,
       environment: this.customEnvironment,
@@ -198,7 +201,7 @@ export class SyncStore extends BaseStore {
     const seq = ++this.loadSeq;
     const page = this.page;
     try {
-      const query = `project=${encodeURIComponent(this.project)}&page=${encodeURIComponent(page)}`;
+      const query = `project=${encodeURIComponent(this.project)}&environment=${encodeURIComponent(this.environment)}&page=${encodeURIComponent(page)}`;
       const { threads } = await this.request<ThreadsResponse>('GET', `/api/threads?${query}`);
       if (seq === this.loadSeq) this.setState({ status: 'ready', error: null, ...this.split(threads) });
     } catch (error) {
@@ -209,7 +212,6 @@ export class SyncStore extends BaseStore {
   }
 
   private upsert(thread: Thread): void {
-    if (thread.page !== this.page) return;
     const others = this.all.filter((t) => t.id !== thread.id);
     this.setState(this.split([...others, thread].sort((a, b) => a.createdAt - b.createdAt)));
   }
@@ -218,7 +220,7 @@ export class SyncStore extends BaseStore {
   private split(all: Thread[]): Pick<StoreState, 'threads' | 'elsewhere'> {
     this.all = all;
     const here = (t: Thread) => !t.environment || t.environment === this.environment;
-    return { threads: all.filter(here), elsewhere: all.filter((t) => !here(t)) };
+    return { threads: all.filter(here), elsewhere: all.filter((t) => !here(t) && t.page === this.page) };
   }
 
   private async request<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {

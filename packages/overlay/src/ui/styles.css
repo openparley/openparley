@@ -248,7 +248,8 @@ textarea.field { resize: none; min-height: 64px; max-height: 200px; }
 .mention[data-me] { background: var(--op-highlight-soft); color: var(--op-text-highlight); }
 
 /* List */
-.list { flex: 1; overflow-y: auto; margin: 0; padding: 4px 0; list-style: none; }
+.list { flex: 1; overflow-y: auto; padding: 4px 0; overscroll-behavior: contain; }
+.list ul { margin: 0; padding: 0; list-style: none; }
 .list-item {
   display: flex;
   gap: 8px;
@@ -264,7 +265,12 @@ textarea.field { resize: none; min-height: 64px; max-height: 200px; }
 .list-text { padding-top: 2.5px; }
 .list-body { margin: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .list-meta { color: var(--op-muted); font-size: 12px; }
-.list-section { margin: 0; padding: 8px 12px 0; color: var(--op-muted); font-size: 12px; font-weight: 600; border-top: 1px solid var(--op-line); }
+.list-section { display: flex; align-items: baseline; gap: 6px; margin: 0; padding: 8px 12px 0; color: var(--op-muted); font-size: 12px; font-weight: 600; border-top: 1px solid var(--op-line); }
+.list section:first-child .list-section { padding-top: 4px; border-top: 0; }
+.list-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-here { flex: none; padding: 0 6px; border-radius: 999px; background: var(--op-accent-soft); color: var(--op-accent-strong); }
+.list-variant { overflow-wrap: anywhere; }
+.notice-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; overflow-wrap: anywhere; cursor: pointer; }
 .empty { margin: 0; padding: 20px 12px; color: var(--op-muted); text-align: center; }
 .toggle { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-top: 1px solid var(--op-line); color: var(--op-muted); }
 

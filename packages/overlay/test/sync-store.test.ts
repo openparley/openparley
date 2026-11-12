@@ -9,6 +9,7 @@ const realFetch = globalThis.fetch;
 let meStatus = 200;
 let pageThreads: unknown[] = [];
 let posted: Record<string, unknown>[] = [];
+let listed: URL[] = [];
 let stores: SyncStore[] = [];
 
 beforeEach(() => {
@@ -16,6 +17,7 @@ beforeEach(() => {
   meStatus = 200;
   pageThreads = [];
   posted = [];
+  listed = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url.endsWith('/api/threads') && init?.method === 'POST') {
@@ -28,7 +30,10 @@ beforeEach(() => {
         ? Response.json({ user: { id: 'u1', name: 'Olivia', email: 'o@example.com', role: 'owner' } })
         : Response.json({ error: 'Sign in to continue.' }, { status: meStatus });
     }
-    if (url.includes('/api/threads')) return Response.json({ threads: pageThreads });
+    if (url.includes('/api/threads?')) {
+      listed.push(new URL(url));
+      return Response.json({ threads: pageThreads });
+    }
     if (url.endsWith('/api/auth/logout')) return new Response(null, { status: 204 });
     return new Response('not found', { status: 404 });
   }) as typeof fetch;
@@ -90,7 +95,7 @@ test('threads from other environments are kept apart; old threads without one sh
   expect(store.getState().elsewhere.map((t) => t.id)).toEqual(['prod']);
 
   // Without data-environment the server takes the Origin; the store sends nothing.
-  await store.createThread('/', thread().anchor, 'Hi');
+  await store.createThread({ page: '/' }, thread().anchor, 'Hi');
   expect(posted[0]).not.toHaveProperty('environment');
   expect(store.getState().threads.map((t) => t.id)).toContain('new');
 });
@@ -101,7 +106,29 @@ test('data-environment groups origins and is sent with the revision', async () =
   const store = await ready({ environment: 'preview', revision: 'a1b2c3d' });
   expect(store.getState().threads.map((t) => t.id)).toEqual(['preview']);
   expect(store.getState().elsewhere.map((t) => t.id)).toEqual(['origin']);
-  await store.createThread('/', thread().anchor, 'Hi');
+  await store.createThread({ page: '/' }, thread().anchor, 'Hi');
   expect(posted[0]).toMatchObject({ environment: 'preview', revision: 'a1b2c3d' });
   expect(store.getState().threads.map((t) => t.id)).toContain('new');
+});
+
+test('lists the whole environment, plus this page from other environments; new threads keep their query', async () => {
+  localStorage.setItem(TOKEN_KEY, 'token');
+  pageThreads = [
+    thread({ id: 'home', page: '/', environment: 'https://example.test' }),
+    thread({ id: 'pricing', page: '/pricing', environment: 'https://example.test' }),
+    thread({ id: 'prod-home', page: '/', environment: 'https://www.example.com' }),
+    thread({ id: 'prod-pricing', page: '/pricing', environment: 'https://www.example.com' }),
+  ];
+  const store = await ready();
+  expect(Object.fromEntries(listed[0]!.searchParams)).toEqual({ project: 'p1', environment: 'https://example.test', page: '/' });
+  expect(store.getState().threads.map((t) => t.id)).toEqual(['home', 'pricing']);
+  expect(store.getState().elsewhere.map((t) => t.id)).toEqual(['prod-home']);
+
+  // Moving to another page keeps the environment's threads and only swaps the other environments'.
+  store.setPage('/pricing');
+  expect(store.getState().threads.map((t) => t.id)).toEqual(['home', 'pricing']);
+  expect(store.getState().elsewhere.map((t) => t.id)).toEqual(['prod-pricing']);
+
+  await store.createThread({ page: '/pricing', search: '?plan=team' }, thread().anchor, 'Hi');
+  expect(posted[0]).toMatchObject({ page: '/pricing', search: '?plan=team' });
 });

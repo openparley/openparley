@@ -252,7 +252,7 @@ test('threads stay in the environment they were made in; other environments are 
   await signIn(second);
   await expect(second.getByRole('button', { name: /^Thread by Olivia/ })).toHaveCount(0);
   await second.getByRole('button', { name: /^List threads/ }).click();
-  const list = second.getByRole('dialog', { name: 'Threads on this page' });
+  const list = second.getByRole('dialog', { name: 'Threads' });
   await expect(list.getByText('No threads in this environment yet.')).toBeVisible();
   await expect(list.getByText('Other environments')).toBeVisible();
   await list.getByRole('button', { name: /Seen on localhost/ }).click();
@@ -269,6 +269,32 @@ test('threads stay in the environment they were made in; other environments are 
   const labelledLocal = await open(SITE_URL, '&environment=preview');
   await expect(labelledLocal.getByRole('button', { name: /^Thread by Olivia: On the preview/ })).toBeVisible();
   await expect(labelledLocal.getByRole('button', { name: /^Thread by Olivia: Seen on localhost/ })).toHaveCount(0);
+  await context.close();
+});
+
+test('a team link to a thread on another page goes there and opens it', async ({ browser }) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(`${SITE_URL}/team.html?tab=specs&project=${projectId}`);
+  await page.getByRole('button', { name: /^Show threads/ }).click();
+  await signIn(page, { email: 'olivia@example.com', password: 'correct horse battery' });
+  await page.keyboard.press('c');
+  await page.locator('#cta').click();
+  await page.getByRole('dialog', { name: 'New thread' }).getByRole('textbox').fill('Specs tab only');
+  await page.getByRole('dialog', { name: 'New thread' }).getByRole('button', { name: 'Post' }).click();
+  const card = page.getByRole('dialog', { name: 'Thread' });
+  await expect(card.getByText('Specs tab only')).toBeVisible();
+
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await card.getByRole('button', { name: 'Copy link to this thread' }).click();
+  const link = new URL(await page.evaluate(() => navigator.clipboard.readText()));
+  // The link points at the page the thread was made on, query sorted.
+  expect(link.search).toBe(`?project=${projectId}&tab=specs`);
+
+  const other = await context.newPage();
+  await other.goto(`${SITE_URL}/team.html?project=${projectId}${link.hash}`);
+  await expect(other).toHaveURL(`${SITE_URL}/team.html?project=${projectId}&tab=specs`);
+  await expect(other.getByRole('dialog', { name: 'Thread' }).getByText('Specs tab only')).toBeVisible();
   await context.close();
 });
 

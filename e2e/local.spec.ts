@@ -29,7 +29,7 @@ test('create a thread, see it after reload', async ({ page }) => {
 
   await page.reload();
   // The overlay remembers it was open during this browser session.
-  await expect(page.getByRole('button', { name: 'List threads on this page (1 open thread)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'List threads (1 open thread)' })).toBeVisible();
   await expect(pin).toBeVisible();
   await pin.click();
   const card = page.getByRole('dialog', { name: 'Thread' });
@@ -70,7 +70,7 @@ test('reply, resolve and reopen', async ({ page }) => {
   await expect(card).toBeHidden();
   // Resolved threads are hidden unless asked for.
   await expect(page.getByRole('button', { name: /^Resolved thread by Ada/ })).toBeHidden();
-  await page.getByRole('button', { name: /^List threads on this page/ }).click();
+  await page.getByRole('button', { name: /^List threads/ }).click();
   await page.getByLabel(/Show resolved/).check();
   await page.getByRole('listitem').getByRole('button', { name: /Is the discount still running/ }).click();
   await card.getByRole('button', { name: 'Reopen thread' }).click();
@@ -110,7 +110,7 @@ test('threads whose element disappeared are listed, not misplaced', async ({ pag
   await page.keyboard.press('Escape');
   await page.evaluate(() => document.querySelector('#postcode')!.remove());
   await expect(page.getByRole('button', { name: /^Thread by Ada/ })).toBeHidden();
-  await page.getByRole('button', { name: /^List threads on this page/ }).click();
+  await page.getByRole('button', { name: /^List threads/ }).click();
   await expect(page.getByText('element not found')).toBeVisible();
   await page.getByRole('listitem').getByRole('button', { name: /Validate Dutch postcodes/ }).click();
   await expect(page.getByText("The element this thread was attached to isn't on the page anymore.")).toBeVisible();
@@ -157,7 +157,7 @@ test('a closed overlay shows how many threads are open', async ({ page }) => {
   await createThread(page, '.product h3', 'Counting', 'Ada');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('button', { name: 'Show threads (1 open thread on this page)' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show threads (1 open thread)' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Thread by Ada/ })).toBeHidden();
 });
 
@@ -547,4 +547,84 @@ test('a comment author lines up with their avatar', async ({ page }) => {
       return Math.abs(avatar.y + avatar.height / 2 - (name.y + name.height / 2));
     })
     .toBeLessThanOrEqual(1);
+});
+
+test('the list shows every page, this one first; picking a thread elsewhere goes there and opens it', async ({ page }) => {
+  await openOverlay(page);
+  await createThread(page, '.product h3', 'Home page thread', 'Ada');
+  await page.keyboard.press('Escape');
+
+  await page.goto('/product.html?id=1');
+  // The count covers every page, not just this one.
+  await expect(page.getByRole('button', { name: 'List threads (1 open thread)' })).toBeVisible();
+  await createThread(page, 'nav a', 'Product page thread');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /^List threads/ }).click();
+  const list = page.getByRole('dialog', { name: 'Threads' });
+  await expect(list.getByRole('region')).toHaveCount(2);
+  await expect(list.getByRole('region').nth(0)).toHaveAccessibleName('This page, /product.html');
+  await expect(list.getByRole('region').nth(1)).toHaveAccessibleName('/');
+  await list.getByRole('button', { name: /Home page thread/ }).click();
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('dialog', { name: 'Thread' }).getByText('Home page thread')).toBeVisible();
+
+  // Opening OpenParley where there's nothing shows where the threads are.
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => history.pushState(null, '', '/nothing-here'));
+  await page.getByRole('button', { name: 'Show threads (2 open threads)' }).click();
+  await expect(page.getByRole('dialog', { name: 'Threads' })).toBeVisible();
+});
+
+test('threads from another query string show only where their element is clearly the same', async ({ page }) => {
+  await page.goto('/product.html?id=1&utm_source=newsletter');
+  await openOverlay(page);
+  await createThread(page, 'nav a', 'Cart link is hard to see', 'Ada');
+  await page.keyboard.press('Escape');
+  await createThread(page, '#title', 'Title needs the storage size');
+  await page.keyboard.press('Escape');
+  const cartPin = page.getByRole('button', { name: /^Thread by Ada: Cart link/ });
+  const titlePin = page.getByRole('button', { name: /^Thread by Ada: Title needs/ });
+
+  // Tracking parameters and in-page links don't make it another page.
+  await page.goto('/product.html?id=1');
+  await expect(cartPin).toBeVisible();
+  await expect(titlePin).toBeVisible();
+  await page.getByRole('link', { name: 'Reviews' }).click();
+  await expect(titlePin).toBeVisible();
+
+  // Product 2: the shared navigation keeps its thread, product 1's title doesn't get one.
+  await page.goto('/product.html?id=2');
+  await expect(cartPin).toBeVisible();
+  await expect(titlePin).toHaveCount(0);
+  await cartPin.click();
+  const card = page.getByRole('dialog', { name: 'Thread' });
+  await expect(card.getByText('Made on')).toContainText('Made on /product.html?id=1.');
+  await page.keyboard.press('Escape');
+
+  // The list still has it, and picking it goes to the product it was made on.
+  await page.getByRole('button', { name: /^List threads/ }).click();
+  const list = page.getByRole('dialog', { name: 'Threads' });
+  await expect(list.getByRole('button', { name: /Title needs the storage size/ })).toContainText('?id=1');
+  await expect(list.getByText('element not found')).toHaveCount(0);
+  await list.getByRole('button', { name: /Title needs the storage size/ }).click();
+  await expect(page).toHaveURL('/product.html?id=1');
+  await expect(card.getByText('Title needs the storage size')).toBeVisible();
+  await expect(card.getByText('Made on')).toHaveCount(0);
+});
+
+test('a thread on another route hash opens without reloading the page', async ({ page }) => {
+  await page.goto('/product.html?id=1#/specs');
+  await openOverlay(page);
+  await createThread(page, '#title', 'Specs route thread', 'Ada');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => {
+    (window as unknown as { marker: number }).marker = 1;
+    location.hash = '#/reviews';
+  });
+  await page.getByRole('button', { name: /^List threads/ }).click();
+  await page.getByRole('dialog', { name: 'Threads' }).getByRole('button', { name: /Specs route thread/ }).click();
+  await expect(page).toHaveURL('/product.html?id=1#/specs');
+  await expect(page.getByRole('dialog', { name: 'Thread' }).getByText('Specs route thread')).toBeVisible();
+  expect(await page.evaluate(() => (window as unknown as { marker?: number }).marker)).toBe(1);
 });

@@ -1,7 +1,7 @@
 import type { Anchor, Thread } from '@openparley/protocol';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { createAnchor, resolveAnchor, type Match } from '../anchor';
-import { pageKey, watchNavigation } from '../page';
+import { createAnchor, resolveAnchor, sticks, type Match } from '../anchor';
+import { currentPage, pathOf, sameVariant, watchNavigation, type PageRef } from '../page';
 import { refLink, stripShareHash, threadsLink, type SharePayload } from '../share';
 import type { OverlayStore, StoreState } from '../store';
 import { listenForShortcut, type ShortcutPriority } from '../shortcut';
@@ -45,15 +45,23 @@ export interface AppProps {
 
 const BROWSE: View = { name: 'browse' };
 const CLOSED: View = { name: 'closed' };
+/** The thread to open after navigating to its page. */
+const PENDING_KEY = 'openparley:v1:open';
+
+/** `navigate`: go to the thread's own page first if it isn't this one. Off after arriving, so a site that rewrites its URL can't cause a loop. */
+interface Focus {
+  id: string;
+  navigate: boolean;
+}
 
 export function App({ host, store, tracker, share, startActive, onActiveChange, shortcut, shortcutPriority }: AppProps) {
   const state = useStoreState(store);
-  const [page, setPage] = useState(pageKey);
+  const [here, setHere] = useState<PageRef>(currentPage);
   const [view, setView] = useState<View>(startActive ? BROWSE : CLOSED);
   const [listOpen, setListOpen] = useState(false);
   const [showResolved, setShowResolved] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
-  const [focusId, setFocusId] = useState<string | null>(null);
+  const [focus, setFocus] = useState<Focus | null>(null);
   const [hovered, setHovered] = useState<Element | null>(null);
   // Decided by the last pointer, not the device: touchscreen laptops have a mouse too.
   const [touch, setTouch] = useState(() => matchMedia('(hover: none)').matches);
@@ -61,15 +69,26 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
 
   const active = view.name !== 'closed';
   const openId = view.name === 'thread' ? view.id : null;
-  // A thread from another environment is only placed on the page while it's open.
   const fromElsewhere = openId ? state.elsewhere.find((t) => t.id === openId) : undefined;
-  const placed = useMemo(() => (fromElsewhere ? [...state.threads, fromElsewhere] : state.threads), [state.threads, fromElsewhere]);
-  const resolutions = useResolutions(placed, tracker, active);
   const selected = openId ? (state.threads.find((t) => t.id === openId) ?? fromElsewhere) : undefined;
+  const onPage = useMemo(() => state.threads.filter((t) => t.page === here.page), [state.threads, here.page]);
+  // An open thread is placed even when it wouldn't be otherwise (another environment or variant).
+  const candidates = useMemo(() => (selected && !onPage.includes(selected) ? [...onPage, selected] : onPage), [onPage, selected]);
+  const resolutions = useResolutions(candidates, tracker, active);
+  // Threads made on this exact page, plus those from other variants of it (`?id=1` on `?id=2`) whose element is clearly here too.
+  const own = (thread: Thread) => sameVariant(thread, here);
+  const pinned = onPage.filter((t) => own(t) || sticks(t.anchor, resolutions.get(t.id)));
 
   const notify = useCallback((message: string, tone?: 'error') => setToast({ message, tone, key: Date.now() }), []);
 
-  useEffect(() => watchNavigation(() => setPage(pageKey())), []);
+  useEffect(
+    () =>
+      watchNavigation(() => {
+        const next = currentPage();
+        setHere((previous) => (sameVariant(previous, next) ? previous : next));
+      }),
+    [],
+  );
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => setTouch(event.pointerType === 'touch');
@@ -78,13 +97,19 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
   }, []);
 
   // Only a real navigation resets the view; on mount this must not undo a shortcut pressed early.
-  const shownPage = useRef(page);
+  const shownPage = useRef(here);
   useEffect(() => {
-    store.setPage(page);
-    if (shownPage.current === page) return;
-    shownPage.current = page;
-    setView((v) => (v.name === 'closed' ? v : BROWSE));
-  }, [store, page]);
+    store.setPage(here.page);
+    if (shownPage.current !== here) {
+      shownPage.current = here;
+      setView((v) => (v.name === 'closed' ? v : BROWSE));
+    }
+    const pending = takePending();
+    if (pending) {
+      setView((v) => (v.name === 'closed' ? BROWSE : v));
+      setFocus({ id: pending, navigate: false });
+    }
+  }, [store, here]);
 
   useEffect(() => onActiveChange(active), [active]);
 
@@ -112,15 +137,14 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
         const [first] = store.importThreads(payload.threads);
         if (!first) return;
         setView(BROWSE);
-        if (first.page === pageKey()) setFocusId(first.id);
-        else notify(`The shared thread is on another page: ${first.page}`);
+        setFocus({ id: first.id, navigate: true });
       } else {
         if (store.kind !== 'sync') {
           notify("This link points to a team thread, but this site isn't connected to a team server.", 'error');
           return;
         }
         setView(BROWSE);
-        setFocusId(payload.threadId);
+        setFocus({ id: payload.threadId, navigate: true });
         if (store.getState().status === 'signed-out') notify('Sign in to see the thread that was shared with you.');
       }
     });
@@ -130,19 +154,19 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
   }, []);
 
   useEffect(() => {
-    if (!focusId || state.status !== 'ready') return;
-    setFocusId(null);
-    if (state.threads.some((t) => t.id === focusId) || state.elsewhere.some((t) => t.id === focusId)) {
-      openThread(focusId);
-      return;
-    }
-    if (store.kind === 'sync') {
+    if (!focus || state.status !== 'ready') return;
+    setFocus(null);
+    const show = (thread: Thread) => (!focus.navigate || canOpenHere(thread) ? openThread(thread.id) : goTo(thread));
+    const known = state.threads.find((t) => t.id === focus.id) ?? state.elsewhere.find((t) => t.id === focus.id);
+    if (known) show(known);
+    else if (!focus.navigate) notify("Couldn't find that thread here.", 'error');
+    else if (store.kind === 'sync') {
       store
-        .fetchThread(focusId)
-        .then((thread) => notify(thread ? `The shared thread is on another page: ${thread.page}` : 'The shared thread no longer exists.'))
+        .fetchThread(focus.id)
+        .then((thread) => (thread ? goTo(thread) : notify('The shared thread no longer exists.')))
         .catch((err: Error) => notify(err.message, 'error'));
     }
-  }, [focusId, state.status, state.threads]);
+  }, [focus, state.status, state.threads]);
 
   // Scroll a freshly opened thread into view as soon as its element can be found.
   useEffect(() => {
@@ -187,7 +211,7 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
   // Threads you can step through with J/K: the visible ones in reading order (top to bottom, then
   // left to right on the page); ones whose element is gone come last.
   function stepOrder(): Thread[] {
-    const visible = state.threads.filter((t) => showResolved || t.status === 'open' || t.id === selected?.id);
+    const visible = pinned.filter((t) => showResolved || t.status === 'open' || t.id === selected?.id);
     const placed: { thread: Thread; x: number; y: number }[] = [];
     const missing: Thread[] = [];
     for (const thread of visible) {
@@ -259,13 +283,28 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
     setView({ name: 'thread', id });
   }
 
+  /** Other environments' threads are only ever shown on this page; everything else opens on its own page. */
+  function canOpenHere(thread: Thread): boolean {
+    return own(thread) || state.elsewhere.some((t) => t.id === thread.id);
+  }
+
+  function goTo(thread: Thread) {
+    setListOpen(false);
+    try {
+      sessionStorage.setItem(PENDING_KEY, thread.id);
+    } catch {
+      // Without storage the page still opens, just without the thread.
+    }
+    location.assign(pathOf(thread));
+  }
+
   function startPicking() {
     setListOpen(false);
     setView({ name: 'pick' });
   }
 
   async function copyLink(thread: Thread) {
-    const base = new URL(location.href);
+    const base = new URL(pathOf(thread), location.href);
     const link = store.kind === 'sync' ? refLink(base, thread.id) : await threadsLink(base, [thread]);
     if (await copyText(link)) {
       notify(store.kind === 'sync' ? 'Link copied.' : 'Link copied. It contains the conversation so far.');
@@ -283,6 +322,7 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
   else if (view.name === 'compose') spotlight = { element: view.element };
   else if (selected && resolutions.get(selected.id)) spotlight = { element: resolutions.get(selected.id)!.element };
   const openCount = state.threads.filter((t) => t.status === 'open').length;
+  const sibling = selected && !fromElsewhere && !own(selected) ? selected : null;
 
   let primary: LauncherProps['primary'] = null;
   if (store.kind === 'sync' && state.status === 'signed-out') {
@@ -308,10 +348,10 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
       )}
 
       {active &&
-        placed.map((thread) => {
+        candidates.map((thread) => {
           const match = resolutions.get(thread.id);
           const isSelected = selected?.id === thread.id;
-          if (!match || (thread.status === 'resolved' && !showResolved && !isSelected)) return null;
+          if (!match || !(isSelected || pinned.includes(thread)) || (thread.status === 'resolved' && !showResolved && !isSelected)) return null;
           return (
             <Pin
               key={thread.id}
@@ -346,7 +386,7 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
               onCancel={() => setView(BROWSE)}
               onSubmit={async (body, name) => {
                 if (store.kind === 'local' && name) store.setName(name);
-                const thread = await store.createThread(page, view.anchor, body);
+                const thread = await store.createThread(here, view.anchor, body);
                 setView({ name: 'thread', id: thread.id });
               }}
             />
@@ -372,6 +412,7 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
             store={store}
             detached={!resolutions.get(selected.id)}
             madeIn={fromElsewhere?.environment ? environmentLabel(fromElsewhere.environment) : null}
+            madeOn={sibling ? { label: pathOf(sibling), onGo: () => goTo(sibling) } : null}
             onClose={() => setView(BROWSE)}
             onCopyLink={() => void copyLink(selected)}
             notify={notify}
@@ -380,14 +421,15 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
       )}
 
       {active && listOpen && view.name !== 'thread' && (
-        <Floating tracker={tracker} target={null} label="Threads on this page">
+        <Floating tracker={tracker} target={null} label="Threads">
           <ListCard
             threads={state.threads}
             elsewhere={state.elsewhere}
+            here={here}
             located={located}
             showResolved={showResolved}
             onShowResolved={setShowResolved}
-            onOpen={(thread) => openThread(thread.id)}
+            onOpen={(thread) => (canOpenHere(thread) ? openThread(thread.id) : goTo(thread))}
             onClose={() => setListOpen(false)}
           />
         </Floating>
@@ -405,7 +447,11 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
         listOpen={listOpen && view.name !== 'thread'}
         picking={view.name === 'pick'}
         primary={primary}
-        onActivate={() => setView(BROWSE)}
+        onActivate={() => {
+          setView(BROWSE);
+          // The badge counts the whole environment; with nothing here, show where the threads are.
+          if (openCount > 0 && !state.threads.some((t) => t.status === 'open' && own(t))) setListOpen(true);
+        }}
         onDeactivate={() => {
           setListOpen(false);
           setView(CLOSED);
@@ -418,6 +464,16 @@ export function App({ host, store, tracker, share, startActive, onActiveChange, 
       />
     </>
   );
+}
+
+function takePending(): string | null {
+  try {
+    const id = sessionStorage.getItem(PENDING_KEY);
+    sessionStorage.removeItem(PENDING_KEY);
+    return id;
+  } catch {
+    return null;
+  }
 }
 
 function useStoreState(store: OverlayStore): StoreState {

@@ -91,7 +91,7 @@ test('tap highlights, a second tap starts the thread in a bottom sheet, the pin 
   // The list is a sheet too.
   await thread.getByRole('button', { name: 'Close' }).tap();
   await toolbar(page).getByRole('button', { name: /^List threads/ }).tap();
-  const list = page.getByRole('dialog', { name: 'Threads on this page' });
+  const list = page.getByRole('dialog', { name: 'Threads' });
   expect((await box(list)).width).toBe(390);
   await list.getByRole('button', { name: /Make this button bigger/ }).tap();
   await expect(thread).toBeVisible();

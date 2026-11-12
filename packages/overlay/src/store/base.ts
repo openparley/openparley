@@ -1,12 +1,13 @@
 import type { Anchor, Author, Thread, ThreadStatus } from '@openparley/protocol';
+import type { PageRef } from '../page';
 
 export type StoreStatus = 'loading' | 'ready' | 'signed-out' | 'error';
 
 export interface StoreState {
   status: StoreStatus;
-  /** Threads on the current page in this environment, oldest first. */
+  /** Threads on every page of this environment, oldest first. */
   threads: Thread[];
-  /** Team mode: threads on the same page made in other environments (e.g. production while you're on staging). */
+  /** Team mode: threads on the current base path made in other environments (e.g. production while you're on staging). */
   elsewhere: Thread[];
   /** Local mode: always set (name may still be empty). Sync mode: null until signed in. */
   user: (Author & { admin?: boolean }) | null;
@@ -36,8 +37,9 @@ export abstract class BaseStore {
     return !!user && (user.id === author.id || !!user.admin);
   }
 
+  /** The current base path (`pageKey`); only decides which other environments' threads are fetched. */
   abstract setPage(page: string): void;
-  abstract createThread(page: string, anchor: Anchor, body: string): Promise<Thread>;
+  abstract createThread(where: PageRef, anchor: Anchor, body: string): Promise<Thread>;
   abstract addComment(threadId: string, body: string): Promise<void>;
   abstract setStatus(threadId: string, status: ThreadStatus): Promise<void>;
   abstract deleteThread(threadId: string): Promise<void>;

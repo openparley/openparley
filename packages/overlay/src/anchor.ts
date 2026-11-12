@@ -95,6 +95,22 @@ export function resolveAnchor(anchor: Anchor, doc: Document = document): Match |
   return byText ? { element: byText, exact: false } : null;
 }
 
+// Shared by too many unrelated elements to tell them apart.
+const WEAK_ATTRS = new Set(['role', 'type']);
+
+/**
+ * Whether a thread made on another variant of this page (`?id=1` while on `?id=2`) belongs on this
+ * element too. Only an exact match counts, and it must say something about identity: the same text,
+ * or for elements without text (icons, images) the same identifying attributes. A wrong pin is worse
+ * than a missing one.
+ */
+export function sticks(anchor: Anchor, match: Match | null | undefined): boolean {
+  if (!match?.exact) return false;
+  if (anchor.text) return true;
+  const names = Object.keys(anchor.attrs);
+  return names.some((name) => !WEAK_ATTRS.has(name)) && names.every((name) => match.element.getAttribute(name) === anchor.attrs[name]);
+}
+
 /** Dice coefficient over character bigrams; 1 for identical strings. */
 export function textSimilarity(a: string, b: string): number {
   if (a === b) return 1;

@@ -1,6 +1,7 @@
 import { LIMITS, type Anchor, type Author, type Thread, type ThreadStatus } from '@openparley/protocol';
 import { randomId } from '../id';
 import { mergeThread } from '../merge';
+import type { PageRef } from '../page';
 import { isThread } from '../share';
 import { BaseStore } from './base';
 
@@ -12,26 +13,22 @@ type ThreadMap = Record<string, Thread>;
 /** Keeps threads in this browser's localStorage. No server, no accounts. */
 export class LocalStore extends BaseStore {
   readonly kind = 'local';
-  private page: string;
   private memory: ThreadMap = {};
   private storage = openStorage();
 
-  constructor(page: string) {
+  constructor() {
     super();
-    this.page = page;
     window.addEventListener('storage', this.onStorage);
     this.setState({
       status: 'ready',
       user: this.readMe(),
-      threads: this.threadsFor(page),
+      threads: this.sorted(),
       error: this.storage ? null : 'Browser storage is unavailable, so threads will be lost when you leave this page.',
     });
   }
 
-  setPage(page: string): void {
-    this.page = page;
-    this.refresh();
-  }
+  /** Every thread in this browser is listed, whatever the page; there are no other environments. */
+  setPage(): void {}
 
   setName(name: string): void {
     const user = { id: this.state.user?.id ?? randomId(), name: name.trim().slice(0, LIMITS.authorName) };
@@ -52,12 +49,14 @@ export class LocalStore extends BaseStore {
     return merged;
   }
 
-  async createThread(page: string, anchor: Anchor, body: string): Promise<Thread> {
+  async createThread(where: PageRef, anchor: Anchor, body: string): Promise<Thread> {
     const author = this.author();
     const now = Date.now();
     const thread: Thread = {
       id: randomId(),
-      page,
+      page: where.page,
+      ...(where.search && { search: where.search }),
+      ...(where.hash && { hash: where.hash }),
       anchor,
       status: 'open',
       statusAt: now,
@@ -119,7 +118,7 @@ export class LocalStore extends BaseStore {
   };
 
   private refresh(): void {
-    this.setState({ threads: this.threadsFor(this.page) });
+    this.setState({ threads: this.sorted() });
   }
 
   private author(): Author {
@@ -137,10 +136,8 @@ export class LocalStore extends BaseStore {
     this.refresh();
   }
 
-  private threadsFor(page: string): Thread[] {
-    return Object.values(this.readAll())
-      .filter((t) => t.page === page)
-      .sort((a, b) => a.createdAt - b.createdAt);
+  private sorted(): Thread[] {
+    return Object.values(this.readAll()).sort((a, b) => a.createdAt - b.createdAt);
   }
 
   private readAll(): ThreadMap {

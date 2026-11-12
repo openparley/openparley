@@ -102,7 +102,7 @@ function mountNow(options: OverlayOptions): Overlay {
         environment: options.environment || undefined,
         revision: options.revision || undefined,
       })
-    : new LocalStore(page);
+    : new LocalStore();
   const tracker = new Tracker();
 
   render(

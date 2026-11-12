@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { createAnchor, resolveAnchor, stableClass, stableId, textSimilarity } from '../src/anchor';
+import { createAnchor, resolveAnchor, stableClass, stableId, sticks, textSimilarity } from '../src/anchor';
 
 function page(html: string) {
   document.body.innerHTML = html;
@@ -132,5 +132,43 @@ describe('selector hygiene', () => {
   test('keeps hand-written ids and rejects generated ones', () => {
     for (const id of ['checkout', 'section-2', 'main-nav']) expect(stableId(id)).toBe(true);
     for (const id of [':r1:', '123', 'ember482', 'radix-:R1:', 'a1b2c3d4e5f6', 'react-select-2-input']) expect(stableId(id)).toBe(false);
+  });
+});
+
+describe('sticks (placing a thread from another variant of the page)', () => {
+  const product = (title: string, alt: string) =>
+    page(`<nav><a href="/cart">Cart</a></nav><main><h1 class="title">${title}</h1><img class="photo" alt="${alt}"><button class="share" aria-label="Share"></button></main>`);
+  const sticksOn = (selector: string, other: () => void) => {
+    const anchor = anchorFor(selector);
+    other();
+    return sticks(anchor, resolveAnchor(anchor));
+  };
+
+  test('shared chrome with the same text sticks', () => {
+    product('Phone 1', 'Phone 1 front');
+    expect(sticksOn('nav a', () => product('Phone 2', 'Phone 2 front'))).toBe(true);
+  });
+
+  test('content that differs per variant does not', () => {
+    product('Phone 1', 'Phone 1 front');
+    expect(sticksOn('h1', () => product('Phone 2', 'Phone 2 front'))).toBe(false);
+  });
+
+  test('an element without text needs its identifying attributes to match', () => {
+    product('Phone 1', 'Phone 1 front');
+    expect(sticksOn('img', () => product('Phone 2', 'Phone 2 front'))).toBe(false);
+    product('Phone 1', 'Phone 1 front');
+    expect(sticksOn('button', () => product('Phone 2', 'Phone 2 front'))).toBe(true);
+  });
+
+  test('an element without text or identifying attributes never sticks', () => {
+    page(`<div class="hero"><span class="icon"></span></div>`);
+    expect(sticksOn('.icon', () => {})).toBe(false);
+  });
+
+  test('a fuzzy match is not enough', () => {
+    page(`<section><button class="secondary">Back</button><button class="primary">Pay now</button></section>`);
+    const moved = () => page(`<section><button class="btn-alt">Back</button><button class="btn-main">Pay now</button></section>`);
+    expect(sticksOn('.primary', moved)).toBe(false);
   });
 });

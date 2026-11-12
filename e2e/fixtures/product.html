@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Product variant fixture</title>
+    <script src="/openparley.js" defer></script>
+  </head>
+  <body style="font: 16px system-ui; padding: 40px">
+    <nav><a href="/cart">Cart</a></nav>
+    <h1 id="title">Phone</h1>
+    <script>
+      document.getElementById('title').textContent = `Phone ${new URLSearchParams(location.search).get('id') ?? ''}`;
+    </script>
+    <p><a href="#reviews">Reviews</a></p>
+    <p id="reviews" style="margin-top: 120vh">No reviews yet.</p>
+  </body>
+</html>

@@ -12,6 +12,8 @@ export interface ThreadCardProps {
   detached: boolean;
   /** Set when the thread was made in another environment: where. */
   madeIn: string | null;
+  /** Set when the thread was made on another variant of this page (`?id=1` while on `?id=2`). */
+  madeOn: { label: string; onGo: () => void } | null;
   onClose: () => void;
   onCopyLink: () => void;
   notify: (message: string, tone?: 'error') => void;
@@ -19,7 +21,7 @@ export interface ThreadCardProps {
   nav: { index: number; total: number; onPrevious: () => void; onNext: () => void } | null;
 }
 
-export function ThreadCard({ thread, store, detached, madeIn, onClose, onCopyLink, notify, nav }: ThreadCardProps) {
+export function ThreadCard({ thread, store, detached, madeIn, madeOn, onClose, onCopyLink, notify, nav }: ThreadCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const resolved = thread.status === 'resolved';
@@ -99,6 +101,15 @@ export function ThreadCard({ thread, store, detached, madeIn, onClose, onCopyLin
         </button>
       </div>
       {madeIn && <p class="notice">Made on {madeIn}.</p>}
+      {madeOn && (
+        <p class="notice">
+          Made on{' '}
+          <button type="button" class="notice-link" title="Go to that page" onClick={madeOn.onGo}>
+            {madeOn.label.length > 80 ? `${madeOn.label.slice(0, 79)}…` : madeOn.label}
+          </button>
+          .
+        </p>
+      )}
       {detached && <p class="notice">The element this thread was attached to isn't on the page anymore.</p>}
       <div class="comments" ref={listRef}>
         {thread.comments.map((comment) => (

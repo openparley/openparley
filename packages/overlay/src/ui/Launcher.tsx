@@ -30,7 +30,7 @@ export function Launcher(props: LauncherProps) {
         <button
           type="button"
           class="icon-btn launcher-open"
-          aria-label={`Show threads (${plural(props.openCount, 'open thread')} on this page)`}
+          aria-label={`Show threads (${plural(props.openCount, 'open thread')})`}
           title="Threads"
           onClick={props.onActivate}
         >
@@ -65,8 +65,8 @@ export function Launcher(props: LauncherProps) {
         type="button"
         class="btn launcher-list"
         aria-pressed={props.listOpen}
-        aria-label={`List threads on this page (${plural(props.openCount, 'open thread')})`}
-        title="All threads on this page"
+        aria-label={`List threads (${plural(props.openCount, 'open thread')})`}
+        title="All threads"
         onClick={props.onToggleList}
       >
         <Icon name="list" />
