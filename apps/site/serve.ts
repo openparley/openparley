@@ -19,7 +19,8 @@ const server = Bun.serve({
     if (brand) return new Response(Bun.file(brand));
     const generated = generatedFiles(await Bun.file(join(publicDir, 'docs.html')).text())[relative.slice(1)];
     if (generated !== undefined) {
-      return new Response(generated, { headers: { 'content-type': `${relative.endsWith('.md') ? 'text/markdown' : 'text/plain'}; charset=utf-8` } });
+      const type = relative.endsWith('.md') ? 'text/markdown' : relative.endsWith('.xml') ? 'text/xml' : 'text/plain';
+      return new Response(generated, { headers: { 'content-type': `${type}; charset=utf-8` } });
     }
     const candidates = /^\/openparley[\w.-]*$/.test(relative)
       ? [join(overlayDir, relative)]

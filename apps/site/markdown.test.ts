@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { articleToMarkdown } from './markdown';
-import { generatedFiles, renderHtml } from './pages';
+import { generatedFiles, renderHtml, securityTxt } from './pages';
 
 const docsHtml = await Bun.file(join(import.meta.dir, 'public/docs.html')).text();
 
@@ -28,5 +28,25 @@ describe('docs for coding agents', () => {
 
   test('refuses HTML it does not know how to convert', () => {
     expect(() => articleToMarkdown('<article><p>ok</p><details>lost</details></article>', '/x')).toThrow('Unconverted HTML');
+  });
+});
+
+describe('crawler and security files', () => {
+  test('robots.txt points at the sitemap, which lists every page with a canonical URL', async () => {
+    const files = generatedFiles(docsHtml);
+    expect(files['robots.txt']).toContain('Sitemap: https://openparley.dev/sitemap.xml');
+    const listed = [...files['sitemap.xml']!.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, url]) => url).sort();
+    const pages = await Promise.all(
+      ['index', 'docs', 'imprint', 'terms', 'privacy', 'dpa'].map((name) => Bun.file(join(import.meta.dir, `public/${name}.html`)).text()),
+    );
+    const canonical = pages.map((html) => html.match(/<link rel="canonical" href="([^"]+)"/)![1]).sort();
+    expect(listed).toEqual(canonical);
+  });
+
+  test('security.txt has the RFC 9116 fields and expires within a year', () => {
+    const txt = securityTxt(new Date('2026-11-12T15:30:00Z'));
+    expect(txt).toContain('Contact: mailto:support@openparley.dev');
+    expect(txt).toContain('Expires: 2027-11-12T00:00:00.000Z');
+    expect(txt).toContain('Canonical: https://openparley.dev/.well-known/security.txt');
   });
 });
