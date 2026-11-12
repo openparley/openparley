@@ -147,6 +147,12 @@ const MIGRATIONS = [
   ALTER TABLE threads ADD COLUMN hash TEXT;
   CREATE INDEX threads_environment ON threads(project_id, environment);
   `,
+  `
+  ALTER TABLE agent_tokens ADD COLUMN previous_refresh_hash TEXT;
+  ALTER TABLE agent_tokens ADD COLUMN previous_refresh_until INTEGER;
+  ALTER TABLE agent_tokens ADD COLUMN previous_response TEXT;
+  CREATE INDEX agent_tokens_previous_refresh ON agent_tokens(previous_refresh_hash);
+  `,
 ];
 
 export function openDatabase(path: string): Database {

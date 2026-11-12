@@ -220,13 +220,46 @@ describe('tokens', () => {
     expect(refreshed.access_token).not.toBe(first.access_token);
     expect((await mcp(first.access_token!)).status).toBe(401);
     expect((await mcp(refreshed.access_token!)).status).toBe(200);
-    expect(((await (await token({ grant_type: 'refresh_token', refresh_token: first.refresh_token!, client_id })).json()) as any).error).toBe('invalid_grant');
 
     const owner = repo.listActiveUsers()[0]!;
     const [agent] = repo.listAgentTokens(owner.id);
     await b.post(`/admin/agents/${agent!.id}/revoke`, {});
     expect((await mcp(refreshed.access_token!)).status).toBe(401);
     expect(((await (await token({ grant_type: 'refresh_token', refresh_token: refreshed.refresh_token!, client_id })).json()) as any).error).toBe('invalid_grant');
+  });
+
+  test('a refresh token that was just rotated gets the same tokens again, then stops working', async () => {
+    const { repo, register, approve, exchange, token, mcp } = await setup();
+    const db = (repo as unknown as { db: import('bun:sqlite').Database }).db;
+    const { client_id } = (await register()).body;
+    const other = (await register()).body.client_id;
+    const first = (await (await exchange(client_id, (await approve(client_id)).searchParams.get('code')!)).json()) as Record<string, any>;
+    const refresh = async (refresh_token: string, id = client_id) =>
+      (await (await token({ grant_type: 'refresh_token', refresh_token, client_id: id })).json()) as Record<string, any>;
+
+    // Two sessions waking up together both refresh with the same token: both keep a working sign-in.
+    const a = await refresh(first.refresh_token);
+    const b = await refresh(first.refresh_token);
+    expect(b.access_token).toBe(a.access_token);
+    expect(b.refresh_token).toBe(a.refresh_token);
+    expect(b.expires_in).toBeGreaterThan(0);
+    expect(b.expires_in).toBeLessThanOrEqual(ACCESS_TOKEN_TTL / 1000);
+    expect((await mcp(a.access_token)).status).toBe(200);
+    expect((await refresh(first.refresh_token, other)).error).toBe('invalid_grant');
+
+    // The next rotation moves on: the token from two rotations ago is no longer answered.
+    const c = await refresh(a.refresh_token);
+    expect(c.access_token).not.toBe(a.access_token);
+    expect((await refresh(first.refresh_token)).error).toBe('invalid_grant');
+    expect((await refresh(a.refresh_token)).access_token).toBe(c.access_token);
+
+    db.query('UPDATE agent_tokens SET previous_refresh_until = $now').run({ now: Date.now() });
+    expect((await refresh(a.refresh_token)).error).toBe('invalid_grant');
+    const d = await refresh(c.refresh_token);
+    expect((await mcp(d.access_token)).status).toBe(200);
+    const stored = JSON.stringify(db.query('SELECT * FROM agent_tokens').all());
+    expect(stored).not.toContain(d.access_token.slice(4));
+    expect(stored).not.toContain(d.refresh_token.slice(4));
   });
 
   test('access tokens expire', async () => {

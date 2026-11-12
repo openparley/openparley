@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import type { Anchor, Author, Comment, Role, Thread, ThreadStatus } from '@openparley/protocol';
-import { hashToken, randomId, randomToken } from './crypto';
+import { hashToken, openWithToken, randomId, randomToken, sealWithToken } from './crypto';
 import { allows } from './origins';
 
 export interface User {
@@ -120,6 +120,12 @@ const DAY = 24 * 60 * 60 * 1000;
 export const ACCESS_TOKEN_TTL = 60 * 60 * 1000;
 /** Sliding: every refresh starts it again, so an agent in regular use stays signed in. */
 export const REFRESH_TOKEN_TTL = 90 * DAY;
+/**
+ * How long a refresh token that was just rotated still gets the same answer again. Clients refresh in
+ * parallel (several sessions waking up together) or retry when the answer got lost; without this the
+ * second request fails and the client throws away the sign-in.
+ */
+export const REFRESH_REPLAY_TTL = 2 * 60 * 1000;
 export const OAUTH_CODE_TTL = 5 * 60 * 1000;
 /** Registrations that never led to a sign-in are dropped after this. */
 const UNUSED_CLIENT_TTL = 7 * DAY;
@@ -343,18 +349,44 @@ export class Repo {
     return tokens.issued;
   }
 
-  /** Rotates both tokens; the old refresh token stops working. */
+  /**
+   * Rotates both tokens; the old refresh token stops working, except that for `REFRESH_REPLAY_TTL`
+   * it gets the very same tokens again (not new ones, which would cut off whoever got the first answer).
+   */
   refreshOAuthAgent(refreshToken: string, clientId: string): OAuthTokens | null {
     if (!refreshToken.startsWith(REFRESH_TOKEN_PREFIX)) return null;
-    const tokens = this.newOAuthTokens();
-    const changed = this.db
-      .query(
-        `UPDATE agent_tokens SET token_hash = $tokenHash, token_expires_at = $tokenExpiresAt, refresh_hash = $refreshHash, refresh_expires_at = $refreshExpiresAt
-         WHERE refresh_hash = $old AND client_id = $clientId AND refresh_expires_at > $now
-           AND user_id IN (SELECT id FROM users WHERE removed_at IS NULL)`,
-      )
-      .run({ ...tokens.stored, old: hashToken(refreshToken), clientId, now: Date.now() });
-    return changed.changes ? tokens.issued : null;
+    const old = hashToken(refreshToken);
+    const now = Date.now();
+    return this.db.transaction((): OAuthTokens | null => {
+      const row = this.db
+        .query<
+          { id: string; refresh_hash: string; token_expires_at: number; previous_refresh_until: number | null; previous_response: string | null },
+          { old: string; clientId: string; now: number }
+        >(
+          `SELECT id, refresh_hash, token_expires_at, previous_refresh_until, previous_response FROM agent_tokens
+           WHERE (refresh_hash = $old OR previous_refresh_hash = $old) AND client_id = $clientId AND refresh_expires_at > $now
+             AND user_id IN (SELECT id FROM users WHERE removed_at IS NULL)`,
+        )
+        .get({ old, clientId, now });
+      if (!row) return null;
+      if (row.refresh_hash !== old) {
+        if (!row.previous_response || (row.previous_refresh_until ?? 0) <= now) return null;
+        const replay = openWithToken(refreshToken, row.previous_response);
+        if (!replay) return null;
+        const { accessToken, refreshToken: next } = JSON.parse(replay) as { accessToken: string; refreshToken: string };
+        return { accessToken, refreshToken: next, expiresIn: Math.max(0, Math.floor((row.token_expires_at - now) / 1000)) };
+      }
+      const tokens = this.newOAuthTokens();
+      const response = JSON.stringify({ accessToken: tokens.issued.accessToken, refreshToken: tokens.issued.refreshToken });
+      this.db
+        .query(
+          `UPDATE agent_tokens SET token_hash = $tokenHash, token_expires_at = $tokenExpiresAt, refresh_hash = $refreshHash, refresh_expires_at = $refreshExpiresAt,
+             previous_refresh_hash = $old, previous_refresh_until = $replayUntil, previous_response = $response
+           WHERE id = $id`,
+        )
+        .run({ ...tokens.stored, old, replayUntil: now + REFRESH_REPLAY_TTL, response: sealWithToken(refreshToken, response), id: row.id });
+      return tokens.issued;
+    })();
   }
 
   /** Ends an OAuth sign-in by either of its tokens (RFC 7009). Pasted agent tokens are only revoked from the admin page. */
