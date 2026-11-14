@@ -8,6 +8,9 @@ export type TenantStatus = 'active' | 'suspended';
 const ABANDONED_SIGNUP_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface Tenant {
+  /** Never changes. Everything that must survive a rename (database file, agent tokens, memberships) uses it. */
+  id: string;
+  /** The address, `<slug>.<domain>`. */
   slug: string;
   name: string;
   status: TenantStatus;
@@ -23,6 +26,8 @@ export interface Tenant {
   polarCustomerId: string | null;
   polarSubscriptionId: string | null;
   suspendedAt: number | null;
+  /** File name under `tenants/`: the slug for workspaces from before ids, the id since. */
+  dbFile: string;
 }
 
 /** A sign-up between the form and the paid subscription. Reserves the slug while checkout is open. */
@@ -117,9 +122,16 @@ const MIGRATIONS = [
   `
   ALTER TABLE tenants ADD COLUMN max_threads INTEGER;
   `,
+  `
+  ALTER TABLE tenants ADD COLUMN id TEXT;
+  ALTER TABLE tenants ADD COLUMN db_file TEXT;
+  UPDATE tenants SET id = lower(hex(randomblob(12))), db_file = slug || '.db';
+  CREATE UNIQUE INDEX tenants_id ON tenants(id);
+  `,
 ];
 
 interface Row {
+  id: string;
   slug: string;
   name: string;
   status: TenantStatus;
@@ -133,9 +145,11 @@ interface Row {
   polar_customer_id: string | null;
   polar_subscription_id: string | null;
   suspended_at: number | null;
+  db_file: string;
 }
 
 const toTenant = (row: Row): Tenant => ({
+  id: row.id,
   slug: row.slug,
   name: row.name,
   status: row.status,
@@ -149,6 +163,7 @@ const toTenant = (row: Row): Tenant => ({
   polarCustomerId: row.polar_customer_id,
   polarSubscriptionId: row.polar_subscription_id,
   suspendedAt: row.suspended_at,
+  dbFile: row.db_file,
 });
 
 interface SignupRow {
@@ -219,7 +234,9 @@ export class ControlStore {
     const problem = slugProblem(input.slug);
     if (problem) throw new Error(problem);
     if (this.find(input.slug)) throw new Error(`Workspace "${input.slug}" already exists.`);
+    const id = Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString('hex');
     const row: Row = {
+      id,
       slug: input.slug,
       name: input.name,
       status: 'active',
@@ -233,13 +250,14 @@ export class ControlStore {
       polar_customer_id: input.polarCustomerId ?? null,
       polar_subscription_id: input.polarSubscriptionId ?? null,
       suspended_at: null,
+      db_file: `${id}.db`,
     };
     this.db
       .query(
-        `INSERT INTO tenants (slug, name, status, setup_token, max_members, max_projects, max_threads, created_at,
-           plan, billing_email, polar_customer_id, polar_subscription_id, suspended_at)
-         VALUES ($slug, $name, $status, $setup_token, $max_members, $max_projects, $max_threads, $created_at,
-           $plan, $billing_email, $polar_customer_id, $polar_subscription_id, $suspended_at)`,
+        `INSERT INTO tenants (id, slug, name, status, setup_token, max_members, max_projects, max_threads, created_at,
+           plan, billing_email, polar_customer_id, polar_subscription_id, suspended_at, db_file)
+         VALUES ($id, $slug, $name, $status, $setup_token, $max_members, $max_projects, $max_threads, $created_at,
+           $plan, $billing_email, $polar_customer_id, $polar_subscription_id, $suspended_at, $db_file)`,
       )
       .run({ ...row });
     return toTenant(row);
@@ -247,6 +265,11 @@ export class ControlStore {
 
   find(slug: string): Tenant | null {
     const row = this.db.query<Row, { slug: string }>('SELECT * FROM tenants WHERE slug = $slug').get({ slug });
+    return row ? toTenant(row) : null;
+  }
+
+  findById(id: string): Tenant | null {
+    const row = this.db.query<Row, { id: string }>('SELECT * FROM tenants WHERE id = $id').get({ id });
     return row ? toTenant(row) : null;
   }
 

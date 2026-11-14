@@ -40,7 +40,7 @@ try {
       for (const t of cloud.control.list()) {
         const billing = t.plan ? `${t.plan} ${t.billingEmail}` : 'no billing';
         const since = t.suspendedAt ? ` since ${new Date(t.suspendedAt).toISOString().slice(0, 10)}` : '';
-        console.log(`${t.slug.padEnd(24)} ${(t.status + since).padEnd(22)} members ${t.maxMembers ?? '∞'}  projects ${t.maxProjects ?? '∞'}  threads ${t.maxThreads ?? '∞'}  ${billing}  ${t.name}`);
+        console.log(`${t.slug.padEnd(24)} ${t.dbFile.padEnd(30)} ${(t.status + since).padEnd(22)} members ${t.maxMembers ?? '∞'}  projects ${t.maxProjects ?? '∞'}  threads ${t.maxThreads ?? '∞'}  ${billing}  ${t.name}`);
       }
       break;
     case 'suspend':

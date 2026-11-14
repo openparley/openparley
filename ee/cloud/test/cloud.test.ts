@@ -104,8 +104,12 @@ describe('isolation', () => {
     const { cloud, config } = makeCloud();
     const acme = await workspace(cloud, 'acme');
     const globex = await workspace(cloud, 'globex');
-    expect(existsSync(join(config.dataDir, 'tenants/acme.db'))).toBe(true);
-    expect(existsSync(join(config.dataDir, 'tenants/globex.db'))).toBe(true);
+    // Named by the workspace's id, which a rename doesn't change.
+    for (const slug of ['acme', 'globex']) {
+      const tenant = cloud.control.find(slug)!;
+      expect(tenant.dbFile).toBe(`${tenant.id}.db`);
+      expect(existsSync(join(config.dataDir, 'tenants', tenant.dbFile))).toBe(true);
+    }
 
     const created = await acme.api('POST', '/threads', { project: acme.project, page: '/', anchor, body: 'Acme only' });
     expect(created.status).toBe(201);

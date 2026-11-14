@@ -64,7 +64,7 @@ export class Cloud {
     const tenant = slug ? this.control.find(slug) : null;
     if (!tenant) return page(404, 'No workspace here', `There is no OpenParley workspace at ${host}.`);
     if (tenant.status === 'suspended') {
-      this.evict(tenant.slug);
+      this.evict(tenant.id);
       // Only an operator pauses a workspace (billing drops it to Free instead). People get the control
       // plane's page; the overlay's script and API calls on customers' sites get a plain 402.
       if (isNavigation(request)) return Response.redirect(`${this.controlUrl()}/workspaces/${tenant.slug}`, 302);
@@ -132,28 +132,28 @@ export class Cloud {
 
   /** Workspaces with notifications still waiting stay open until they've gone out (their timer lives in the instance). */
   closeIdle(now = Date.now()): void {
-    for (const [slug, entry] of this.live) {
-      if (now - entry.lastUsed >= this.config.idleMs && !entry.instance.hasPendingNotifications()) this.evict(slug);
+    for (const [id, entry] of this.live) {
+      if (now - entry.lastUsed >= this.config.idleMs && !entry.instance.hasPendingNotifications()) this.evict(id);
     }
   }
 
   close(): void {
     clearInterval(this.sweeper);
-    for (const slug of [...this.live.keys()]) this.evict(slug);
+    for (const id of [...this.live.keys()]) this.evict(id);
     this.control.close();
   }
 
   private instanceFor(tenant: Tenant): Instance {
     const limitsKey = `${tenant.maxMembers}/${tenant.maxProjects}/${tenant.maxThreads}`;
-    const cached = this.live.get(tenant.slug);
+    const cached = this.live.get(tenant.id);
     if (cached && cached.limitsKey === limitsKey) {
       cached.lastUsed = Date.now();
       // Map order doubles as recency order for eviction.
-      this.live.delete(tenant.slug);
-      this.live.set(tenant.slug, cached);
+      this.live.delete(tenant.id);
+      this.live.set(tenant.id, cached);
       return cached.instance;
     }
-    if (cached) this.evict(tenant.slug);
+    if (cached) this.evict(tenant.id);
     if (this.live.size >= this.config.maxOpen) this.evict(this.live.keys().next().value!);
 
     const instance = openInstance({
@@ -161,7 +161,7 @@ export class Cloud {
       mailer: this.mailer,
       config: {
         port: this.config.port,
-        databasePath: join(this.config.dataDir, 'tenants', `${tenant.slug}.db`),
+        databasePath: join(this.config.dataDir, 'tenants', tenant.dbFile),
         publicUrl: this.workspaceUrl(tenant.slug),
         overlayDir: this.config.overlayDir,
         trustProxy: this.config.trustProxy,
@@ -172,14 +172,15 @@ export class Cloud {
         notifyQuietMs: this.config.notifyQuietMs,
       },
     });
-    this.live.set(tenant.slug, { instance, limitsKey, lastUsed: Date.now() });
+    this.live.set(tenant.id, { instance, limitsKey, lastUsed: Date.now() });
     return instance;
   }
 
-  private evict(slug: string): void {
-    const entry = this.live.get(slug);
+  /** Keyed by workspace id, so a rename never leaves a second instance open on the same file. */
+  private evict(id: string): void {
+    const entry = this.live.get(id);
     if (!entry) return;
-    this.live.delete(slug);
+    this.live.delete(id);
     entry.instance.close();
   }
 }

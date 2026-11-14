@@ -105,9 +105,11 @@ export class Billing {
   }
 
   /** A new subscription for a free workspace: it takes over from the one that ended, if any. */
-  private renew(sub: PolarSubscription, slug: string): (() => Promise<void>) | null {
+  private renew(sub: PolarSubscription, ref: string): (() => Promise<void>) | null {
     const { control } = this.cloud;
-    const tenant = control.find(slug);
+    // Checkouts name the workspace by id; ones started before ids existed name it by slug.
+    const tenant = control.findById(ref) ?? control.find(ref);
+    const slug = tenant?.slug ?? ref;
     if (!tenant) {
       console.error(`Subscription ${sub.id} renews "${slug}", which doesn't exist. Refund it or provision by hand.`);
       return null;

@@ -146,10 +146,11 @@ Cloud is not a second backend. It imports Sync's `openInstance()` and runs one i
                 ┌─────────────────▼─────────────────┐
                 │ ee/cloud (one Bun process)      │
 cloud.<domain> ─▶ control plane   data/control.db   │  workspaces, status, limits
-<slug>.<domain> ─▶ router ──▶ openInstance(data/tenants/<slug>.db)   ← Sync, unchanged
+<slug>.<domain> ─▶ router ──▶ openInstance(data/tenants/<id>.db)     ← Sync, unchanged
                 └───────────────────────────────────┘
 ```
 
+- **Workspaces have a permanent id** next to their address (slug). The database file, live instances and Polar metadata use the id, so the address can change; files of workspaces from before ids keep their `<slug>.db` name (`db_file` in `control.db`, shown by `cloud list`).
 - **Isolation is structural.** The hostname picks the database file; Sync has no tenant column anywhere, so one workspace's queries cannot reach another's data. Sessions, tokens, cookies (host-only), CORS and setup links are all per workspace.
 - **Instances open lazily** on the first request and close after `IDLE_MINUTES` (default 10) without traffic, or when more than `MAX_OPEN_WORKSPACES` are open (least recently used first). Idle workspaces cost only disk.
 - **Every request re-reads its workspace row** in `control.db` (one indexed lookup), so suspending a workspace or changing its limits applies immediately, also when done from the CLI in another process.

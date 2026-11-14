@@ -401,11 +401,11 @@ describe('after a subscription ends', () => {
       customer_id: 'cust-1',
       success_url: `${CONTROL}/workspaces/acme?renewing=1`,
       return_url: `${CONTROL}/workspaces/acme`,
-      metadata: { renew: 'acme' },
+      metadata: { renew: cloud.control.find('acme')!.id },
       allow_trial: false,
     });
 
-    await webhook(cloud, 'subscription.active', subscription('', { id: 'sub-2', metadata: { renew: 'acme' }, at: T0 + 5000 }));
+    await webhook(cloud, 'subscription.active', subscription('', { id: 'sub-2', metadata: { renew: cloud.control.find('acme')!.id }, at: T0 + 5000 }));
     expect(cloud.control.find('acme')).toMatchObject({ status: 'active', plan: 'team', maxThreads: null, polarSubscriptionId: 'sub-2' });
     expect(mails.at(-1)!.subject).toBe('Acme is now on OpenParley Team');
     expect(await (await b.request(`${CONTROL}/workspaces/acme?renewing=1`)).text()).toContain('Acme is active');
@@ -533,7 +533,7 @@ describe('free plan', () => {
       return cloud.control.find(slug)!;
     };
     expect(await confirm(ctx.cloud, 'acme', 'olivia@acme.test')).toMatchObject({ polarCustomerId: 'cust-1', polarSubscriptionId: null });
-    expect(ctx.customers.get('olivia@acme.test')).toMatchObject({ name: 'acme', metadata: { workspace: 'acme' } });
+    expect(ctx.customers.get('olivia@acme.test')).toMatchObject({ name: 'acme', metadata: { workspace: ctx.cloud.control.find('acme')!.id } });
     // Same person, second workspace: Polar has one customer per email.
     expect((await confirm(ctx.cloud, 'acme-labs', 'olivia@acme.test')).polarCustomerId).toBe('cust-1');
     expect(ctx.customers.size).toBe(1);
@@ -590,11 +590,12 @@ describe('free plan', () => {
       customer_id: 'cust-1',
       success_url: `${CONTROL}/workspaces/acme?renewing=1`,
       return_url: `${CONTROL}/workspaces/acme`,
-      metadata: { renew: 'acme' },
+      metadata: { renew: cloud.control.find('acme')!.id },
     });
     expect(await (await b.request(`${CONTROL}/workspaces/acme?renewing=1`)).text()).toContain('Upgrading Acme');
 
     // Polar reports a subscription in its trial as `trialing`: that's paid as far as the workspace goes.
+    // (By slug, as checkouts started before workspace ids name it: those still find their workspace.)
     await webhook(cloud, 'subscription.created', subscription('', { status: 'trialing', metadata: { renew: 'acme' }, customer: { email: 'billing@acme.test' } }));
     expect(cloud.control.find('acme')).toMatchObject({ status: 'active', plan: 'team', maxMembers: null, polarSubscriptionId: 'sub-1', billingEmail: 'billing@acme.test' });
     expect(mails.at(-1)!.subject).toBe('Acme is now on OpenParley Team');
@@ -625,7 +626,10 @@ describe('control.db', () => {
       INSERT INTO tenants VALUES ('acme', 'Acme', 'active', 'tok', 5, NULL, 1);`);
     old.close();
     const control = new ControlStore(dataDir);
-    expect(control.find('acme')).toMatchObject({ slug: 'acme', maxMembers: 5, plan: null, billingEmail: null, suspendedAt: null });
+    expect(control.find('acme')).toMatchObject({ slug: 'acme', maxMembers: 5, plan: null, billingEmail: null, suspendedAt: null, dbFile: 'acme.db' });
+    const { id } = control.find('acme')!;
+    expect(id).toMatch(/^[0-9a-f]{24}$/);
+    expect(control.findById(id)!.slug).toBe('acme');
     control.update('acme', { status: 'suspended' });
     expect(control.find('acme')!.suspendedAt).toBeNumber();
     control.close();

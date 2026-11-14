@@ -223,7 +223,7 @@ export function controlPlane({ cloud, config, polar }: Options) {
     // Best effort: free workspaces appear in Polar, and a later upgrade checks out as this customer.
     if (polar) {
       try {
-        const customerId = await polar.ensureCustomer({ email: signup.email, name: signup.name, metadata: { workspace: tenant.slug } });
+        const customerId = await polar.ensureCustomer({ email: signup.email, name: signup.name, metadata: { workspace: tenant.id } });
         cloud.control.update(tenant.slug, { polarCustomerId: customerId });
       } catch (error) {
         console.error(`Couldn't create a Polar customer for ${tenant.slug}:`, error);
@@ -311,7 +311,7 @@ export function controlPlane({ cloud, config, polar }: Options) {
         customerId: tenant.polarCustomerId,
         successUrl: `${base}/workspaces/${tenant.slug}?renewing=1`,
         returnUrl: `${base}/workspaces/${tenant.slug}`,
-        metadata: { renew: tenant.slug },
+        metadata: { renew: tenant.id },
         // One trial per workspace: a team that cancelled and comes back pays from day one.
         allowTrial: !tenant.polarSubscriptionId,
       });
