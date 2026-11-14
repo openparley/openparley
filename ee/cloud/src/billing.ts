@@ -87,6 +87,7 @@ export class Billing {
     }
     if (signup.tenantSlug) return null;
     const plan = this.planForProduct(sub.product_id) ?? (isPaidPlanId(signup.plan) ? PLANS[signup.plan] : PLANS.team);
+    const account = signup.accountId ? this.cloud.accounts.find(signup.accountId) : null;
     const tenant = control.create({
       // The reservation can lapse while someone sits on the checkout page; they paid, so they still get a workspace.
       slug: freeSlug(signup.slug, (slug) => !control.find(slug)),
@@ -96,10 +97,13 @@ export class Billing {
       billingEmail: sub.customer?.email ?? signup.email,
       polarCustomerId: sub.customer_id,
       polarSubscriptionId: sub.id,
+      verifiedOwnerEmail: account?.email ?? null,
     });
     control.completeSignup(signup.id, tenant.slug);
     return async () => {
       this.cloud.open(tenant.slug);
+      // Signed up while signed in: that account owns it, no setup link.
+      if (account) this.cloud.createOwner(tenant, account);
       await this.mailReady(tenant);
     };
   }
@@ -179,6 +183,7 @@ export class Billing {
 
   private async mailReady(tenant: Tenant) {
     const portal = this.config.polar?.portalUrl;
+    const owned = this.cloud.hasOwner(tenant.slug);
     await this.mailer.send({
       to: tenant.billingEmail!,
       replyTo: this.config.supportEmail ?? undefined,
@@ -186,8 +191,9 @@ export class Billing {
       text: [
         `Your OpenParley workspace "${tenant.name}" is ready at ${this.cloud.workspaceUrl(tenant.slug)}`,
         '',
-        'Create the owner account with this one-time link:',
-        this.cloud.setupUrl(tenant),
+        ...(owned
+          ? ['Open it from your OpenParley account:', `${this.cloud.controlUrl()}/open/${tenant.id}`]
+          : ['Create the owner account with this one-time link:', this.cloud.setupUrl(tenant)]),
         '',
         ...(portal ? [`Invoices, payment method and cancellation: ${portal}`] : []),
       ].join('\n'),

@@ -1,6 +1,6 @@
 // Library entry point, used by OpenParley Cloud to run many organizations in one process.
 export { createApp, type AppOptions } from './app';
-export { loadConfig, type Config, type Limits } from './config';
+export { githubConfig, loadConfig, type Config, type Limits } from './config';
 export { confirmedEmails, signAssertion, verifyAssertion, type Identity } from './assertion';
 export { githubAuthorizeUrl, githubIdentity, type GithubApp } from './github';
 export { hashToken, randomToken } from './crypto';

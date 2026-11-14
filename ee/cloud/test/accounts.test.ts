@@ -105,13 +105,15 @@ describe('Cloud accounts', () => {
     expect(cloud.accounts.memberships(cloud.accounts.findByEmail('olivia@acme.test')!)).toHaveLength(1);
   });
 
-  test('a workspace you are not in is not opened for you', async () => {
+  test('opening a workspace you are not in: the workspace says so', async () => {
     const { cloud } = makeCloud();
     const { tenant } = await workspace(cloud, 'acme', 'someone@else.test');
     const me = browser(cloud);
     await me.go(`${CONTROL}/auth/github`);
+    expect((await me.go(`${CONTROL}/`)).html).not.toContain('Acme');
     const res = await me.go(`${CONTROL}/open/${tenant.id}`);
-    expect(res.res.status).toBe(404);
+    expect(res.res.status).toBe(403);
+    expect(res.html).toContain('No account here');
   });
 
   test('a teammate joins with GitHub from the invite page; the invited address stays', async () => {

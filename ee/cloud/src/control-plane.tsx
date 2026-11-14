@@ -7,12 +7,13 @@ import { getCookie, setCookie } from 'hono/cookie';
 import { csrf } from 'hono/csrf';
 import type { Cloud } from './cloud';
 import { urlFor, type CloudConfig } from './config';
-import { slugProblem, type Signup, type Tenant } from './control';
+import { slugFrom, slugProblem, type Signup, type Tenant } from './control';
+import type { Account } from './accounts';
 import { freeSlug } from './billing';
 import { isPaidPlanId, isPlanId, PAID_PLANS, planLimits, PLANS, TRIAL_DAYS, type PaidPlanId, type PlanId } from './plans';
 import { verifyWebhook, WebhookVerificationError, type PolarClient } from './polar';
 import { Message, Page } from './views';
-import { accountRoutes, WorkspacesPage, type AccountEnv } from './account-routes';
+import { accountRoutes, safeNext, WorkspacesPage, type AccountEnv } from './account-routes';
 
 const SIGNUP_COOKIE = 'openparley_signup';
 /** How long a slug stays reserved if Polar doesn't tell us when the checkout expires. */
@@ -31,9 +32,12 @@ interface Options {
 
 interface SignupValues {
   name: string;
+  /** Empty: follows the name. */
   slug: string;
   email: string;
   plan: PlanId;
+  /** Where to go once the workspace exists (an agent's sign-in waiting for it). */
+  next: string;
 }
 
 /** cloud.<domain>: sign-up, the post-checkout page, the billing portal link, and Polar's webhook. */
@@ -86,7 +90,7 @@ export function controlPlane({ cloud, config, polar }: Options) {
     c.header('Cache-Control', 'no-store');
     c.header(
       'Content-Security-Policy',
-      `default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; script-src 'nonce-${c.get('nonce')}'; form-action 'self' ${workspaces} https:${polarHttp}; frame-ancestors 'none'; base-uri 'none'`,
+      `default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; font-src 'self'; script-src 'nonce-${c.get('nonce')}'; connect-src 'self'; form-action 'self' ${workspaces} https:${polarHttp}; frame-ancestors 'none'; base-uri 'none'`,
     );
   });
 
@@ -130,44 +134,81 @@ export function controlPlane({ cloud, config, polar }: Options) {
     );
   });
 
+  /** The next free address for a name: free of workspaces, reserved names and other browsers' open checkouts. */
+  const addressFor = (name: string, browserHash: string | null) =>
+    freeSlug(slugFrom(name), (slug) => !slugProblem(slug) && cloud.control.slugAvailable(slug, browserHash));
+  const browserHashOf = (c: Context) => {
+    const token = getCookie(c, SIGNUP_COOKIE);
+    return token ? hashToken(token) : null;
+  };
+
+  app.get('/signup/address', (c) => c.json({ slug: addressFor(c.req.query('name') ?? '', browserHashOf(c)), domain: config.domain }));
+
   app.get('/signup', (c) => {
     if (!polar) return c.html(<Closed />, 503);
     const plan = c.req.query('plan');
-    return c.html(<SignupPage nonce={c.get('nonce')} domain={config.domain} siteUrl={config.siteUrl} values={{ name: '', slug: '', email: '', plan: isPlanId(plan) ? plan : 'free' }} />);
+    const account = c.get('account');
+    const next = c.req.query('next') ? safeNext(c.req.query('next')) : '';
+    // A GitHub account's username is the first suggestion: a solo developer's workspace is often just theirs.
+    const name = account?.githubLogin ?? '';
+    const values = { name, slug: '', email: account?.email ?? '', plan: isPlanId(plan) ? plan : 'free', next };
+    return c.html(
+      <SignupPage
+        nonce={c.get('nonce')}
+        domain={config.domain}
+        siteUrl={config.siteUrl}
+        values={values}
+        preview={name ? addressFor(name, browserHashOf(c)) : ''}
+        account={account}
+        githubUrl={config.github && !account ? `/auth/github?${new URLSearchParams({ next: `/signup?${new URLSearchParams({ plan: values.plan, ...(next && { next }) })}` })}` : null}
+      />,
+    );
   });
 
   app.post('/signup', async (c) => {
     if (!polar || !config.polar) return c.html(<Closed />, 503);
     const form = await c.req.parseBody();
+    const account = c.get('account');
     const values: SignupValues = {
       name: String(form.name ?? '').trim().slice(0, 80),
       slug: String(form.slug ?? '').trim().toLowerCase(),
-      email: String(form.email ?? '').trim(),
+      // Signed in: the account's address, which the sign-in already confirmed.
+      email: account ? account.email : String(form.email ?? '').trim(),
       plan: isPlanId(form.plan) ? form.plan : 'free',
+      next: form.next ? safeNext(String(form.next)) : '',
     };
     const fail = (error: string, status: 400 | 429 | 502 = 400) =>
-      c.html(<SignupPage nonce={c.get('nonce')} domain={config.domain} siteUrl={config.siteUrl} values={values} error={error} />, status);
+      c.html(<SignupPage nonce={c.get('nonce')} domain={config.domain} siteUrl={config.siteUrl} values={values} preview={values.slug} account={account} githubUrl={null} error={error} />, status);
 
     const ip = clientIp(c, config.trustProxy);
     if (signupLimiter.blocked(ip)) return fail('Too many sign-ups from your network. Try again in an hour.', 429);
     signupLimiter.fail(ip);
 
     if (!values.name) return fail('Give your workspace a name.');
+    // One cookie per browser, so going back from the checkout and trying again keeps the reservation.
+    const browserToken = getCookie(c, SIGNUP_COOKIE) ?? randomToken();
+    const browserHash = hashToken(browserToken);
+    // No address chosen: the name's, with a suffix if that's taken. A chosen one is checked as typed.
+    if (!values.slug) values.slug = addressFor(values.name, browserHash);
     const slugError = slugProblem(values.slug);
     if (slugError) return fail(`Workspace address: ${slugError}`);
     const email = emailSchema.safeParse(values.email);
     if (!email.success) return fail(email.error.issues[0]!.message);
-
-    // One cookie per browser, so going back from the checkout and trying again keeps the reservation.
-    const browserToken = getCookie(c, SIGNUP_COOKIE) ?? randomToken();
-    const browserHash = hashToken(browserToken);
     if (!cloud.control.slugAvailable(values.slug, browserHash)) return fail(`${values.slug}.${config.domain} is already taken. Pick another address.`);
 
     const remember = () => setCookie(c, SIGNUP_COOKIE, browserToken, { httpOnly: true, secure, sameSite: 'Lax', path: '/', maxAge: 7 * 24 * 60 * 60 });
 
+    // Signed in and free: nothing to confirm or pay, so the workspace exists right away, with this account as owner.
+    if (account && values.plan === 'free') {
+      const { tenant } = cloud.provision({ slug: values.slug, name: values.name, plan: 'free', ...planLimits(PLANS.free), billingEmail: account.email, verifiedOwnerEmail: account.email });
+      cloud.createOwner(tenant, account);
+      await ensurePolarCustomer(tenant, account.email);
+      return c.redirect(values.next || `/open/${tenant.id}`, 303);
+    }
+
     // Free: no payment, so the emailed link is what proves the address before anything is created.
     if (values.plan === 'free') {
-      const signup = cloud.control.createSignup({ ...values, email: email.data, browserHash, expiresAt: Date.now() + CONFIRM_MS });
+      const signup = cloud.control.createSignup({ name: values.name, slug: values.slug, plan: values.plan, email: email.data, browserHash, expiresAt: Date.now() + CONFIRM_MS });
       try {
         await cloud.billing.sendSignupConfirmation(signup);
       } catch (error) {
@@ -183,7 +224,15 @@ export function controlPlane({ cloud, config, polar }: Options) {
       );
     }
 
-    const signup = cloud.control.createSignup({ ...values, email: email.data, browserHash, expiresAt: Date.now() + RESERVATION_MS });
+    const signup = cloud.control.createSignup({
+      name: values.name,
+      slug: values.slug,
+      plan: values.plan,
+      email: email.data,
+      browserHash,
+      expiresAt: Date.now() + RESERVATION_MS,
+      accountId: account?.id ?? null,
+    });
     let checkout;
     try {
       checkout = await polar.createCheckout({
@@ -231,19 +280,24 @@ export function controlPlane({ cloud, config, polar }: Options) {
       plan: 'free',
       ...planLimits(PLANS.free),
       billingEmail: signup.email,
+      // The link that got them here was sent to this address.
+      verifiedOwnerEmail: signup.email,
     });
     cloud.control.completeSignup(signup.id, tenant.slug);
-    // Best effort: free workspaces appear in Polar, and a later upgrade checks out as this customer.
-    if (polar) {
-      try {
-        const customerId = await polar.ensureCustomer({ email: signup.email, name: signup.name, metadata: { workspace: tenant.id } });
-        cloud.control.update(tenant.slug, { polarCustomerId: customerId });
-      } catch (error) {
-        console.error(`Couldn't create a Polar customer for ${tenant.slug}:`, error);
-      }
-    }
+    await ensurePolarCustomer(tenant, signup.email);
     return c.redirect(setupUrl, 303);
   });
+
+  /** Best effort: free workspaces appear in Polar, and a later upgrade checks out as this customer. */
+  async function ensurePolarCustomer(tenant: Tenant, email: string) {
+    if (!polar) return;
+    try {
+      const customerId = await polar.ensureCustomer({ email, name: tenant.name, metadata: { workspace: tenant.id } });
+      cloud.control.update(tenant.slug, { polarCustomerId: customerId });
+    } catch (error) {
+      console.error(`Couldn't create a Polar customer for ${tenant.slug}:`, error);
+    }
+  }
 
   app.get('/signup/done', (c) => {
     const signup = cloud.control.findSignup(c.req.query('signup') ?? '');
@@ -384,39 +438,87 @@ function Closed() {
   return <Message title="Sign-up is not open yet">OpenParley Cloud isn't taking new workspaces yet. You can self-host OpenParley Sync today.</Message>;
 }
 
-// Fills in the address from the name until the person edits the address themselves.
+// The address line follows the name (asking the server for the next free address) until someone types one.
 const SLUG_SCRIPT = `(() => {
   const name = document.getElementById('name');
   const slug = document.getElementById('slug');
-  let touched = slug.value !== '';
-  slug.addEventListener('input', () => { touched = slug.value !== ''; });
+  const preview = document.getElementById('address');
+  let timer;
+  const show = (value) => { preview.textContent = value; };
+  slug.addEventListener('input', () => { if (slug.value) show(slug.value); });
   name.addEventListener('input', () => {
-    if (touched) return;
-    slug.value = name.value.toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 32).replace(/-+$/, '');
+    if (slug.value) return;
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      if (!name.value.trim()) return show('…');
+      const res = await fetch('/signup/address?name=' + encodeURIComponent(name.value));
+      if (res.ok && !slug.value) show((await res.json()).slug);
+    }, 250);
   });
 })();`;
 
-function SignupPage(props: { nonce: string; domain: string; siteUrl: string | null; values: SignupValues; error?: string }) {
-  const { nonce, domain, siteUrl, values, error } = props;
+function SignupPage(props: {
+  nonce: string;
+  domain: string;
+  siteUrl: string | null;
+  values: SignupValues;
+  /** The address the name currently gives. */
+  preview: string;
+  account: Account | null;
+  /** "Continue with GitHub" for people who aren't signed in. */
+  githubUrl: string | null;
+  error?: string;
+}) {
+  const { nonce, domain, siteUrl, values, preview, account, githubUrl, error } = props;
   return (
-    <Page title="Start your workspace" siteUrl={siteUrl}>
+    <Page title="Start your workspace" siteUrl={siteUrl} aside={account ? <span class="muted">{account.githubLogin ?? account.email}</span> : undefined}>
       <h1>Start your OpenParley workspace</h1>
       {error && (
         <p class="error" role="alert">
           {error}
         </p>
       )}
-      <form method="post" action="/signup" class="box">
-        <label for="name">Workspace name</label>
-        <input id="name" name="name" required maxlength={80} autocomplete="organization" placeholder="Acme" value={values.name} />
-        <label for="slug">Address</label>
-        <div class="address">
-          <input id="slug" name="slug" required maxlength={32} pattern="[a-z0-9](?:[a-z0-9\-]{0,30}[a-z0-9])?" placeholder="acme" value={values.slug} />
-          <span class="muted">.{domain}</span>
+      {account && (
+        <p class="ok">
+          Signed in as <strong>{account.githubLogin ?? account.email}</strong>
+          {account.githubLogin ? ` (${account.email})` : ''}. No password and no confirmation email needed.
+        </p>
+      )}
+      {githubUrl && (
+        <div class="box">
+          <a class="button github" style="margin:0" href={githubUrl}>
+            Continue with GitHub
+          </a>
+          <p class="muted" style="margin:8px 0 0">
+            We read your name, verified email and public profile. Nothing from your repositories.
+          </p>
         </div>
-        <label for="email">Your email</label>
-        <input id="email" name="email" type="email" required autocomplete="email" value={values.email} />
+      )}
+      {githubUrl && <p class="or">or with your email</p>}
+      <form method="post" action="/signup" class="box">
+        {values.next && <input type="hidden" name="next" value={values.next} />}
+        <label for="name">Company or project name</label>
+        <input id="name" name="name" required maxlength={80} autocomplete="organization" placeholder="Acme" value={values.name} />
+        <details class="address-choice" open={!!values.slug}>
+          <summary>
+            Your address: <strong id="address">{values.slug || preview || '…'}</strong>
+            <strong>.{domain}</strong> · <span class="change">Change</span>
+          </summary>
+          <label for="slug">Address</label>
+          <div class="address">
+            <input id="slug" name="slug" maxlength={32} pattern="[a-z0-9](?:[a-z0-9\-]{0,30}[a-z0-9])?" placeholder={preview || 'acme'} value={values.slug} />
+            <span class="muted">.{domain}</span>
+          </div>
+          <p class="muted" style="margin:4px 0 0">
+            Letters, digits and dashes. It's in your script tag and your agents' settings, so pick one you'll keep. Leave it empty to follow the name.
+          </p>
+        </details>
+        {!account && (
+          <>
+            <label for="email">Your email</label>
+            <input id="email" name="email" type="email" required autocomplete="email" value={values.email} />
+          </>
+        )}
         <fieldset>
           <legend>Plan</legend>
           {Object.values(PLANS).map((plan) => (
@@ -432,12 +534,18 @@ function SignupPage(props: { nonce: string; domain: string; siteUrl: string | nu
             <a href={`${siteUrl}/privacy`}>privacy policy</a> explains what we do with your details.
           </p>
         )}
-        <button type="submit">Continue</button>
+        <button type="submit">{account ? 'Create workspace' : 'Continue'}</button>
       </form>
       <p class="muted">
-        Free: we email you a link to confirm your address and create the workspace. {PLANS.team.name}: you start the {TRIAL_DAYS}-day trial
-        through Polar, our merchant of record, and then get a link to create your owner account, on screen and by email.
+        {account
+          ? `Free: your workspace is ready right away. ${PLANS.team.name}: you start the ${TRIAL_DAYS}-day trial through Polar, our merchant of record.`
+          : `Free: we email you a link to confirm your address and create the workspace. ${PLANS.team.name}: you start the ${TRIAL_DAYS}-day trial through Polar, our merchant of record, and then get a link to create your owner account, on screen and by email.`}
       </p>
+      {!account && (
+        <p class="muted">
+          Already have an account? <a href="/login">Sign in</a>.
+        </p>
+      )}
       <script nonce={nonce} dangerouslySetInnerHTML={{ __html: SLUG_SCRIPT }} />
     </Page>
   );
@@ -455,6 +563,19 @@ function DonePage({ signup, cloud }: { signup: Signup; cloud: Cloud }) {
     );
   }
   const workspace = cloud.workspaceUrl(tenant.slug);
+  if (signup.accountId) {
+    return (
+      <Page title="Your workspace is ready">
+        <h1>Your workspace is ready</h1>
+        <p>
+          <strong>{tenant.name}</strong> lives at <code>{workspace}</code>.
+        </p>
+        <a class="button" href={`/open/${tenant.id}`}>
+          Open {tenant.name}
+        </a>
+      </Page>
+    );
+  }
   if (cloud.hasOwner(tenant.slug)) {
     return (
       <Message title="Your workspace is ready">

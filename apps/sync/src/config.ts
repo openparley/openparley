@@ -24,10 +24,11 @@ export interface Config {
   /** Notifications about a thread go out once it has been quiet this long (batching a busy conversation). */
   notifyQuietMs: number;
   /**
-   * A front door that signs people in for this server (OpenParley Cloud): its sign-in page is at
-   * `startUrl` (`next` is appended) and it comes back to `/auth/handoff` with an assertion signed with `key`.
+   * A front door that signs people in for this server (OpenParley Cloud). It comes back to
+   * `/auth/handoff` with an assertion signed with `key`. `startUrl`: its GitHub sign-in (the button,
+   * labelled `label`); `accountUrl`: its own sign-in (e.g. an emailed link). `next` is appended to both.
    */
-  trustedSignIn?: { key: string; startUrl: string; label: string } | null;
+  trustedSignIn?: { key: string; startUrl: string | null; label: string; accountUrl?: string | null } | null;
   /** "Sign in with GitHub" through this server's own GitHub OAuth app (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`). */
   github?: GithubApp | null;
 }
@@ -83,7 +84,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   };
 }
 
-function githubConfig(env: Record<string, string | undefined>): GithubApp | null {
+/** GitHub sign-in from `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (and `GITHUB_WEB_URL`/`GITHUB_API_URL` for a fake one). */
+export function githubConfig(env: Record<string, string | undefined>): GithubApp | null {
   if (!!env.GITHUB_CLIENT_ID !== !!env.GITHUB_CLIENT_SECRET) throw new Error('Set both GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET, or neither.');
   if (!env.GITHUB_CLIENT_ID) return null;
   return {

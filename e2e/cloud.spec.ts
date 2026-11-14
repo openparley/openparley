@@ -64,11 +64,13 @@ test('self-serve sign-up: checkout, setup link, owner account; a revoked subscri
   await page.goto(control);
   await page.getByRole('link', { name: 'Start with Team', exact: true }).click();
 
-  // The address follows the name until it's edited by hand.
-  await page.getByLabel('Workspace name').fill('Globex Corp');
-  await expect(page.getByLabel('Address')).toHaveValue('globex-corp');
+  // The address follows the name until someone chooses one.
+  await page.getByLabel('Company or project name').fill('Globex Corp');
+  await expect(page.locator('#address')).toHaveText('globex-corp');
   const slug = `globex${Date.now().toString(36)}`;
+  await page.getByText('Change').click();
   await page.getByLabel('Address').fill(slug);
+  await expect(page.locator('#address')).toHaveText(slug);
   await page.getByLabel('Your email').fill(email);
   await expect(page.getByRole('radio', { name: /^Team/ })).toBeChecked();
   await page.getByRole('button', { name: 'Continue' }).click();
@@ -124,7 +126,8 @@ test('free plan: one person; inviting someone means upgrading to Team, with a tr
   const page = await context.newPage();
   await page.goto(control);
   await page.getByRole('link', { name: 'Start for free' }).click();
-  await page.getByLabel('Workspace name').fill('Initech');
+  await page.getByLabel('Company or project name').fill('Initech');
+  await page.getByText('Change').click();
   await page.getByLabel('Address').fill(slug);
   await page.getByLabel('Your email').fill(email);
   await page.getByRole('button', { name: 'Continue' }).click();

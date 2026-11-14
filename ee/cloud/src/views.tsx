@@ -16,6 +16,7 @@ button,.button{display:inline-block;font:inherit;font-weight:700;padding:8px 16p
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}footer{margin-top:40px;font-size:14px}footer a{color:inherit}
 .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:24px 0}.plans section{margin:0}.price{font-size:20px;font-weight:700;margin:0}
 .address{display:flex;align-items:center;gap:6px}.address input{flex:1}.address span{white-space:nowrap}
+.address-choice{margin:12px 0 0}.address-choice summary{list-style:none;cursor:pointer}.address-choice summary::-webkit-details-marker{display:none}.address-choice .change{color:#1f5a4c;text-decoration:underline}.address-choice[open] .change{display:none}
 fieldset{border:0;padding:0;margin:12px 0 0}legend{font-weight:600;margin-bottom:4px;padding:0}
 .choice{display:flex;gap:8px;align-items:center;font-weight:400;margin:6px 0}.choice input{width:auto}
 .ok{background:#ddf1ea;border:1px solid #7cc7b2;padding:10px 12px;border-radius:12px}

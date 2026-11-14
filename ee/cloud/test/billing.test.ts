@@ -65,14 +65,18 @@ function setup(options: { env?: Record<string, string>; polarDown?: boolean; mai
 
 /** A browser on cloud.<domain>: keeps its cookies, sends same-origin form posts. */
 function browser(cloud: Cloud) {
-  let cookie = '';
+  const jar = new Map<string, string>();
   const request = async (url: string, init: RequestInit = {}) => {
     const headers = new Headers(init.headers);
-    if (cookie) headers.set('cookie', cookie);
+    const control = new URL(url).host === `cloud.${DOMAIN}`;
+    if (control && jar.size) headers.set('cookie', [...jar].map(([k, v]) => `${k}=${v}`).join('; '));
     if (init.method === 'POST' && !headers.has('origin')) headers.set('origin', new URL(url).origin);
     const res = await cloud.fetch(new Request(url, { ...init, headers, redirect: 'manual' }));
-    const set = res.headers.get('set-cookie');
-    if (set && new URL(url).host === `cloud.${DOMAIN}`) cookie = set.split(';')[0]!;
+    for (const set of control ? res.headers.getSetCookie() : []) {
+      const [name, value = ''] = set.split(';')[0]!.split('=');
+      if (set.includes('Max-Age=0') || !value) jar.delete(name!);
+      else jar.set(name!, value);
+    }
     return res;
   };
   const post = (url: string, fields: Record<string, string>) =>
@@ -653,5 +657,80 @@ describe('client IP', () => {
     for (let i = 0; i < 10; i++) expect((await redeem('203.0.113.1')).status).toBe(404);
     expect((await redeem('203.0.113.1')).status).toBe(429);
     expect((await redeem('198.51.100.7')).status).toBe(404);
+  });
+});
+
+describe('sign-up with a Cloud account', () => {
+  /** Signs `b` in to Cloud with an emailed link (Cloud has no GitHub app in these tests). */
+  async function signIn(ctx: ReturnType<typeof setup>, b: ReturnType<typeof browser>, email = 'olivia@acme.test') {
+    await b.post(`${CONTROL}/login/email`, { email, next: '/' });
+    const token = new URL(/(https:\/\/cloud\.parley\.test\/login\/link\?token=\S+)/.exec(ctx.mails.at(-1)!.text)![1]!).searchParams.get('token')!;
+    expect((await b.post(`${CONTROL}/login/link`, { token })).status).toBe(303);
+  }
+
+  test('signed in and free: the workspace exists right away, the account owns it, the address follows the name', async () => {
+    const ctx = setup();
+    const { cloud, checkouts } = ctx;
+    const b = browser(cloud);
+    await signIn(ctx, b);
+    const page = await (await b.request(`${CONTROL}/signup`)).text();
+    expect(page).toContain('Signed in as <strong>olivia@acme.test</strong>');
+    expect(page).not.toContain('name="email"');
+
+    const res = await b.post(`${CONTROL}/signup`, { name: 'Acme Inc.', plan: 'free' });
+    const tenant = cloud.control.find('acme-inc')!;
+    expect(res.headers.get('location')).toBe(`/open/${tenant.id}`);
+    expect(tenant).toMatchObject({ plan: 'free', billingEmail: 'olivia@acme.test', verifiedOwnerEmail: 'olivia@acme.test' });
+    expect(checkouts).toHaveLength(0);
+    expect(cloud.hasOwner('acme-inc')).toBe(true);
+    // Open hands off to the workspace, where the account is the owner.
+    const open = await b.request(`${CONTROL}/open/${tenant.id}`);
+    const handoff = new URL(open.headers.get('location')!);
+    expect(handoff.host).toBe(`acme-inc.${DOMAIN}`);
+    const landed = await cloud.fetch(new Request(handoff, { redirect: 'manual' }));
+    expect(landed.headers.get('location')).toBe('/admin');
+    expect((await b.request(`${CONTROL}/`)).status).toBe(200);
+    expect(await (await b.request(`${CONTROL}/`)).text()).toContain('acme-inc.parley.test · owner');
+  });
+
+  test('a taken address gets a suffix; a chosen one is checked as typed; reserved names are skipped', async () => {
+    const ctx = setup();
+    const { cloud } = ctx;
+    cloud.provision({ slug: 'acme', name: 'Acme' });
+    const b = browser(cloud);
+    expect(await (await b.request(`${CONTROL}/signup/address?name=Acme`)).json()).toMatchObject({ slug: 'acme-2' });
+    expect(await (await b.request(`${CONTROL}/signup/address?name=MCP`)).json()).toMatchObject({ slug: 'mcp-2' });
+    expect(await (await b.request(`${CONTROL}/signup/address?name=`)).json()).toMatchObject({ slug: 'workspace' });
+    await signIn(ctx, b);
+    await b.post(`${CONTROL}/signup`, { name: 'Acme', plan: 'free' });
+    expect(cloud.control.find('acme-2')).not.toBeNull();
+    const chosen = await b.post(`${CONTROL}/signup`, { name: 'Acme', slug: 'acme', plan: 'free' });
+    expect(chosen.status).toBe(400);
+    expect(await chosen.text()).toContain('acme.parley.test is already taken');
+  });
+
+  test('an agent waiting for a workspace gets it: `next` is where sign-up goes afterwards', async () => {
+    const ctx = setup();
+    const b = browser(ctx.cloud);
+    await signIn(ctx, b);
+    const res = await b.post(`${CONTROL}/signup`, { name: 'Acme', plan: 'free', next: '/oauth/authorize?client_id=x' });
+    expect(res.headers.get('location')).toBe('/oauth/authorize?client_id=x');
+    expect((await b.post(`${CONTROL}/signup`, { name: 'Other', plan: 'free', next: 'https://evil.test/' })).headers.get('location')).toBe('/');
+  });
+
+  test('signed in and Team: after payment the account owns it, no setup link', async () => {
+    const ctx = setup();
+    const { cloud, checkouts, mails } = ctx;
+    const b = browser(cloud);
+    await signIn(ctx, b);
+    await b.post(`${CONTROL}/signup`, { name: 'Acme', plan: 'team' });
+    expect(checkouts[0]!.body).toMatchObject({ customer_email: 'olivia@acme.test', metadata: { slug: 'acme' } });
+    const signup = signupIdOf(checkouts[0]!);
+    await webhook(cloud, 'subscription.active', subscription(signup));
+    const tenant = cloud.control.find('acme')!;
+    expect(cloud.hasOwner('acme')).toBe(true);
+    expect(mails.at(-1)!.text).toContain(`/open/${tenant.id}`);
+    expect(mails.at(-1)!.text).not.toContain('/setup?token=');
+    expect(await (await b.request(`${CONTROL}/signup/done?signup=${signup}`)).text()).toContain(`href="/open/${tenant.id}"`);
   });
 });

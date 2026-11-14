@@ -154,6 +154,22 @@ export class Cloud {
     return createHmac('sha256', this.control.secret('handoff')).update(`handoff:${tenant.id}`).digest('base64url');
   }
 
+  /** Makes `account` the owner of a workspace that has none yet (signed up while signed in). False if it has one. */
+  createOwner(tenant: Tenant, account: Account): boolean {
+    const { repo } = this.instanceFor(tenant);
+    if (repo.hasUsers()) return false;
+    repo.createUser({
+      email: account.email,
+      name: account.name ?? account.githubLogin ?? account.email.split('@')[0]!,
+      passwordHash: '',
+      role: 'owner',
+      emailVerified: true,
+      githubId: account.githubId,
+      githubLogin: account.githubLogin,
+    });
+    return true;
+  }
+
   /** Mirrors member lists of workspaces that were never mirrored (once, after an upgrade). Opens them one by one. */
   syncAllMembers(): void {
     for (const id of this.accounts.unsyncedTenantIds()) {
@@ -210,9 +226,12 @@ export class Cloud {
         mail: this.config.mail,
         notifyQuietMs: this.config.notifyQuietMs,
         // GitHub can't call back to every workspace, so its sign-in runs on the control plane, which hands off.
-        trustedSignIn: github
-          ? { key: this.handoffKey(tenant), startUrl: `${this.controlUrl()}/auth/github?workspace=${tenant.id}`, label: 'Continue with GitHub' }
-          : null,
+        trustedSignIn: {
+          key: this.handoffKey(tenant),
+          startUrl: github ? `${this.controlUrl()}/auth/github?workspace=${tenant.id}` : null,
+          label: 'Continue with GitHub',
+          accountUrl: `${this.controlUrl()}/login?workspace=${tenant.id}`,
+        },
       },
     });
     this.accounts.syncMembers(tenant.id, instance.repo.listActiveUsers());

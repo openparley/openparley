@@ -13,6 +13,9 @@ const GITHUB_STATE = 'openparley_github';
 
 export type AccountEnv = { Variables: { nonce: string; account: Account | null } };
 
+/** A path on a workspace (it checks again before redirecting). */
+const workspacePath = (next: string | undefined | null) => (next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/admin');
+
 /** Only paths on the control plane, so `next` can't send people elsewhere. */
 export function safeNext(next: string | undefined | null): string {
   return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\') ? next : '/';
@@ -41,15 +44,17 @@ export function accountRoutes(app: Hono<AccountEnv>, { cloud, config, base, clie
   /** After signing in: into a workspace (hand-off) or on to a page here. */
   const proceed = (c: Context, account: Account, next: string, workspaceId: string | null) => {
     const tenant = workspaceId ? cloud.control.findById(workspaceId) : null;
-    if (tenant && tenant.status === 'active') return c.redirect(cloud.handoffUrl(tenant, account, next.startsWith('/') ? next : '/admin'), 302);
+    if (tenant && tenant.status === 'active') return c.redirect(cloud.handoffUrl(tenant, account, workspacePath(next)), 302);
     return c.redirect(safeNext(next), 302);
   };
 
+  // `workspace`: a workspace sent you here to sign in (its `next` is a path on that workspace).
   app.get('/login', (c) => {
-    const next = safeNext(c.req.query('next'));
-    const account = c.get('account');
-    if (account) return c.redirect(next);
-    return c.html(<LoginPage github={!!config.github} next={next} siteUrl={config.siteUrl} />);
+    const workspace = c.req.query('workspace');
+    const next = workspace ? `/open/${encodeURIComponent(workspace)}?${new URLSearchParams({ next: workspacePath(c.req.query('next')) })}` : safeNext(c.req.query('next'));
+    if (c.get('account')) return c.redirect(next);
+    const githubUrl = `/auth/github?${new URLSearchParams(workspace ? { workspace, next: workspacePath(c.req.query('next')) } : { next })}`;
+    return c.html(<LoginPage githubUrl={config.github ? githubUrl : null} next={next} siteUrl={config.siteUrl} />);
   });
 
   // --- GitHub ------------------------------------------------------------------
@@ -57,7 +62,7 @@ export function accountRoutes(app: Hono<AccountEnv>, { cloud, config, base, clie
   app.get('/auth/github', (c) => {
     const workspace = c.req.query('workspace') ?? '';
     // A workspace passes its own path as `next`; anything else stays on the control plane.
-    const next = workspace ? (c.req.query('next') ?? '/admin') : safeNext(c.req.query('next'));
+    const next = workspace ? workspacePath(c.req.query('next')) : safeNext(c.req.query('next'));
     const account = c.get('account');
     // Already signed in with GitHub here: nothing to ask GitHub again.
     if (account?.githubId && workspace) return proceed(c, account, next, workspace);
@@ -105,11 +110,13 @@ export function accountRoutes(app: Hono<AccountEnv>, { cloud, config, base, clie
     const form = await c.req.parseBody();
     const next = safeNext(String(form.next ?? ''));
     const email = emailSchema.safeParse(String(form.email ?? '').trim());
-    if (!email.success) return c.html(<LoginPage github={!!config.github} next={next} siteUrl={config.siteUrl} error={email.error.issues[0]!.message} />, 400);
+    const page = (error: string, status: 400 | 429 | 502) =>
+      c.html(<LoginPage githubUrl={config.github ? `/auth/github?${new URLSearchParams({ next })}` : null} next={next} siteUrl={config.siteUrl} error={error} />, status);
+    if (!email.success) return page(email.error.issues[0]!.message, 400);
     const ip = clientIp(c);
     const address = email.data.toLowerCase();
     if (linkPerIp.blocked(ip) || linkPerEmail.blocked(address)) {
-      return c.html(<LoginPage github={!!config.github} next={next} siteUrl={config.siteUrl} error="Too many sign-in links. Try again in an hour." />, 429);
+      return page('Too many sign-in links. Try again in an hour.', 429);
     }
     linkPerIp.fail(ip);
     linkPerEmail.fail(address);
@@ -122,7 +129,7 @@ export function accountRoutes(app: Hono<AccountEnv>, { cloud, config, base, clie
       });
     } catch (error) {
       console.error('Sending a sign-in link failed:', error);
-      return c.html(<LoginPage github={!!config.github} next={next} siteUrl={config.siteUrl} error="We couldn't send the email. Try again in a minute." />, 502);
+      return page("We couldn't send the email. Try again in a minute.", 502);
     }
     // The same answer whether or not an account exists: the link creates one when it's used.
     return c.html(<Message title="Check your email">We've sent a sign-in link to {address}. It works once, for 30 minutes.</Message>);
@@ -160,14 +167,15 @@ export function accountRoutes(app: Hono<AccountEnv>, { cloud, config, base, clie
 
   // --- your workspaces -----------------------------------------------------------
 
+  // Hands off to any workspace: the workspace decides who you are there (a member, someone with an invite, or nobody).
   app.get('/open/:id', (c) => {
     const account = c.get('account');
-    if (!account) return c.redirect(`/login?next=${encodeURIComponent(c.req.path)}`);
+    const here = c.req.url.slice(new URL(c.req.url).origin.length);
+    if (!account) return c.redirect(`/login?next=${encodeURIComponent(here)}`);
     const tenant = cloud.control.findById(c.req.param('id'));
-    const member = tenant && cloud.accounts.memberships(account).some((m) => m.tenantId === tenant.id);
-    if (!tenant || !member) return c.html(<Message title="Not your workspace">You're not a member of that workspace with this account.</Message>, 404);
+    if (!tenant) return c.html(<Message title="No such workspace">That workspace doesn't exist (anymore).</Message>, 404);
     if (tenant.status !== 'active') return c.redirect(`/workspaces/${tenant.slug}`);
-    return c.redirect(cloud.handoffUrl(tenant, account, '/admin'), 302);
+    return c.redirect(cloud.handoffUrl(tenant, account, workspacePath(c.req.query('next'))), 302);
   });
 }
 
@@ -233,7 +241,7 @@ export function AccountAside({ account }: { account: Account }) {
   );
 }
 
-function LoginPage({ github, next, siteUrl, error }: { github: boolean; next: string; siteUrl: string | null; error?: string }) {
+function LoginPage({ githubUrl, next, siteUrl, error }: { githubUrl: string | null; next: string; siteUrl: string | null; error?: string }) {
   return (
     <Page title="Sign in" siteUrl={siteUrl}>
       <h1>Sign in to OpenParley</h1>
@@ -243,9 +251,9 @@ function LoginPage({ github, next, siteUrl, error }: { github: boolean; next: st
         </p>
       )}
       <div class="box">
-        {github && (
+        {githubUrl && (
           <>
-            <a class="button github" style="margin:0" href={`/auth/github?${new URLSearchParams({ next })}`}>
+            <a class="button github" style="margin:0" href={githubUrl}>
               Continue with GitHub
             </a>
             <p class="or">or</p>

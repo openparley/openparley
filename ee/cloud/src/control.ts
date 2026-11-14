@@ -44,6 +44,8 @@ export interface Signup {
   createdAt: number;
   expiresAt: number;
   tenantSlug: string | null;
+  /** Signed up while signed in to a Cloud account: that account becomes the owner, no setup link needed. */
+  accountId: string | null;
 }
 
 /** The newest state we've seen of a Polar subscription, so late-arriving older events are ignored. */
@@ -60,6 +62,19 @@ const RESERVED = new Set([
   'cloud', 'www', 'api', 'app', 'admin', 'mail', 'status', 'docs', 'help', 'support', 'billing',
   'mcp', 'auth', 'login', 'signup', 'oauth', 'github', 'account', 'accounts', 'id', 'static', 'assets', 'cdn', 'openparley',
 ]);
+
+/** An address from a name: `Café Acme, Inc.` → `cafe-acme-inc`. Never empty. */
+export function slugFrom(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+    .slice(0, 32)
+    .replace(/-+$/, '');
+  return slug || 'workspace';
+}
 
 export function slugProblem(slug: string): string | null {
   if (!SLUG.test(slug)) return 'Use 1-32 lowercase letters, digits or dashes, not starting or ending with a dash.';
@@ -167,6 +182,7 @@ const MIGRATIONS = [
   );
   ALTER TABLE tenants ADD COLUMN members_synced_at INTEGER;
   ALTER TABLE tenants ADD COLUMN verified_owner_email TEXT;
+  ALTER TABLE signups ADD COLUMN account_id TEXT;
   `,
 ];
 
@@ -218,6 +234,7 @@ interface SignupRow {
   created_at: number;
   expires_at: number;
   tenant_slug: string | null;
+  account_id: string | null;
 }
 
 const toSignup = (row: SignupRow): Signup => ({
@@ -230,6 +247,7 @@ const toSignup = (row: SignupRow): Signup => ({
   createdAt: row.created_at,
   expiresAt: row.expires_at,
   tenantSlug: row.tenant_slug,
+  accountId: row.account_id,
 });
 
 export interface NewTenant {
@@ -354,8 +372,8 @@ export class ControlStore {
 
   // --- sign-ups ------------------------------------------------------------
 
-  createSignup(input: Omit<Signup, 'id' | 'createdAt' | 'tenantSlug'>): Signup {
-    const signup: Signup = { ...input, id: randomToken(16), createdAt: Date.now(), tenantSlug: null };
+  createSignup(input: Omit<Signup, 'id' | 'createdAt' | 'tenantSlug' | 'accountId'> & { accountId?: string | null }): Signup {
+    const signup: Signup = { ...input, accountId: input.accountId ?? null, id: randomToken(16), createdAt: Date.now(), tenantSlug: null };
     // The privacy policy promises this retention for sign-ups that never became a workspace. The margin
     // past expiry leaves room for a late Polar webhook to still find its sign-up.
     this.db
@@ -363,10 +381,20 @@ export class ControlStore {
       .run({ cutoff: signup.createdAt - ABANDONED_SIGNUP_RETENTION_MS });
     this.db
       .query(
-        `INSERT INTO signups (id, slug, name, email, plan, browser_hash, created_at, expires_at, tenant_slug)
-         VALUES ($id, $slug, $name, $email, $plan, $browserHash, $createdAt, $expiresAt, NULL)`,
+        `INSERT INTO signups (id, slug, name, email, plan, browser_hash, created_at, expires_at, tenant_slug, account_id)
+         VALUES ($id, $slug, $name, $email, $plan, $browserHash, $createdAt, $expiresAt, NULL, $accountId)`,
       )
-      .run({ id: signup.id, slug: signup.slug, name: signup.name, email: signup.email, plan: signup.plan, browserHash: signup.browserHash, createdAt: signup.createdAt, expiresAt: signup.expiresAt });
+      .run({
+        id: signup.id,
+        slug: signup.slug,
+        name: signup.name,
+        email: signup.email,
+        plan: signup.plan,
+        browserHash: signup.browserHash,
+        createdAt: signup.createdAt,
+        expiresAt: signup.expiresAt,
+        accountId: signup.accountId,
+      });
     return signup;
   }
 

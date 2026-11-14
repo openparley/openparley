@@ -53,10 +53,18 @@ export interface WebOptions {
 /** The "Continue with GitHub" button: this server's own GitHub app, or the trusted front door's sign-in. */
 export function externalSignIn(config: Config): { label: string; url: (next: string) => string } | null {
   if (config.github) return { label: 'Continue with GitHub', url: (next) => `/auth/github?${new URLSearchParams({ next })}` };
-  const door = config.trustedSignIn;
-  if (door) return { label: door.label, url: (next) => `${door.startUrl}${door.startUrl.includes('?') ? '&' : '?'}${new URLSearchParams({ next })}` };
+  const start = config.trustedSignIn?.startUrl;
+  if (start) return { label: config.trustedSignIn!.label, url: (next) => withNext(start, next) };
   return null;
 }
+
+/** The front door's own sign-in (an emailed link), for people without a password or GitHub here. */
+export function accountSignIn(config: Config): ((next: string) => string) | null {
+  const url = config.trustedSignIn?.accountUrl;
+  return url ? (next) => withNext(url, next) : null;
+}
+
+const withNext = (url: string, next: string) => `${url}${url.includes('?') ? '&' : '?'}${new URLSearchParams({ next })}`;
 
 export function webRoutes({ repo, config, setupToken, clientIp, authorize, mailer = null, notifier, verifiedOwnerEmail = null }: WebOptions): Hono<Env> {
   const web = new Hono<Env>();
@@ -65,6 +73,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
   const inviteMail = new RateLimiter(30, 60 * 60 * 1000);
   const secure = config.publicUrl.startsWith('https://');
   const external = externalSignIn(config);
+  const account = accountSignIn(config);
   const confirmMail = new RateLimiter(3, 60 * 60 * 1000);
 
   web.use('*', csrf({ origin: new URL(config.publicUrl).origin }));
@@ -131,7 +140,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     if (!repo.hasUsers()) return c.redirect('/setup');
     const next = safeNext(c.req.query('next'));
     if (c.get('user')) return c.redirect(next);
-    return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} external={external} />);
+    return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} external={external} account={account} />);
   });
 
   web.post('/login', async (c) => {
@@ -140,14 +149,14 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     const next = safeNext(String(form.next ?? ''));
     const key = `${clientIp(c)}|${email}`;
     if (limiter.blocked(key)) {
-      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} external={external} error="Too many attempts. Wait a few minutes and try again." />, 429);
+      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} external={external} account={account} error="Too many attempts. Wait a few minutes and try again." />, 429);
     }
     const user = repo.findActiveUserByEmail(email);
     // Accounts without a password (GitHub only) never match one.
     const valid = await verifyPassword(String(form.password ?? ''), user?.passwordHash || DUMMY_HASH);
     if (!user || !user.passwordHash || !valid) {
       limiter.fail(key);
-      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} external={external} error="That email and password don't match." />, 401);
+      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} external={external} account={account} error="That email and password don't match." />, 401);
     }
     limiter.reset(key);
     signIn(c, user);
@@ -376,6 +385,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
         token={c.req.param('token')}
         values={invite.email ? { name: '', email: invite.email } : undefined}
         external={external}
+        account={account}
       />,
     );
   });
@@ -391,7 +401,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     const form = await c.req.parseBody();
     const values = { name: String(form.name ?? ''), email: String(form.email ?? '') };
     const account = await parseAccount(form);
-    if ('error' in account) return c.html(<InvitePage privacyUrl={config.privacyUrl} token={token} error={account.error} values={values} external={external} />, 400);
+    if ('error' in account) return c.html(<InvitePage privacyUrl={config.privacyUrl} token={token} error={account.error} values={values} external={external} account={accountSignIn(config)} />, 400);
     if (membersFull()) {
       return c.html(<Message title="No seats left">This OpenParley server is full. Ask an admin to make room, then use this link again.</Message>, 403);
     }
@@ -797,7 +807,14 @@ function PrivacyLine({ privacyUrl }: { privacyUrl: string | null }) {
   ) : null;
 }
 
-type AccountPageProps = { privacyUrl: string | null; token: string; error?: string; values?: { name: string; email: string }; external?: External };
+type AccountPageProps = {
+  privacyUrl: string | null;
+  token: string;
+  error?: string;
+  values?: { name: string; email: string };
+  external?: External;
+  account?: ((next: string) => string) | null;
+};
 
 function SetupPage({ privacyUrl, token, error, values }: AccountPageProps) {
   return (
@@ -827,7 +844,16 @@ function ExternalButton({ external, next, label }: { external: External; next: s
   ) : null;
 }
 
-function LoginPage({ privacyUrl, next, email, error, external }: { privacyUrl: string | null; next: string; email?: string; error?: string; external: External }) {
+function AccountLink({ account, next, text }: { account?: ((next: string) => string) | null; next: string; text: string }) {
+  return account ? (
+    <p class="muted">
+      {text} <a href={account(next)}>Use an emailed link</a>.
+    </p>
+  ) : null;
+}
+
+function LoginPage(props: { privacyUrl: string | null; next: string; email?: string; error?: string; external: External; account: ((next: string) => string) | null }) {
+  const { privacyUrl, next, email, error, external, account } = props;
   return (
     <Page title="Sign in">
       <h1>Sign in to OpenParley</h1>
@@ -841,6 +867,7 @@ function LoginPage({ privacyUrl, next, email, error, external }: { privacyUrl: s
         <input id="password" name="password" type="password" required autocomplete="current-password" />
         <button type="submit">Sign in</button>
       </form>
+      <AccountLink account={account} next={next} text="No password?" />
       <p class="muted">No account? Ask an admin of this server for an invite link.</p>
       <PrivacyLine privacyUrl={privacyUrl} />
     </Page>
@@ -937,7 +964,7 @@ function inviteEmail({ to, inviter, link, projects }: { to: string; inviter: Use
   };
 }
 
-function InvitePage({ privacyUrl, token, error, values, external = null }: AccountPageProps) {
+function InvitePage({ privacyUrl, token, error, values, external = null, account = null }: AccountPageProps) {
   return (
     <Page title="Join OpenParley">
       <h1>Join your team on OpenParley</h1>
@@ -948,6 +975,7 @@ function InvitePage({ privacyUrl, token, error, values, external = null }: Accou
         <AccountFields values={values} />
         <button type="submit">Create account</button>
       </form>
+      <AccountLink account={account} next={`/invite/${token}`} text="Rather not have a password?" />
       <PrivacyLine privacyUrl={privacyUrl} />
     </Page>
   );
