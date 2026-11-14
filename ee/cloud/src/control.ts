@@ -48,7 +48,11 @@ export interface SubscriptionState {
 }
 
 const SLUG = /^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$/;
-const RESERVED = new Set(['cloud', 'www', 'api', 'app', 'admin', 'mail', 'status', 'docs', 'help', 'support', 'billing']);
+// Hostnames Cloud uses or may use itself. Adding a name is safe only while no workspace has it (check `cloud list`).
+const RESERVED = new Set([
+  'cloud', 'www', 'api', 'app', 'admin', 'mail', 'status', 'docs', 'help', 'support', 'billing',
+  'mcp', 'auth', 'login', 'signup', 'oauth', 'github', 'account', 'accounts', 'id', 'static', 'assets', 'cdn', 'openparley',
+]);
 
 export function slugProblem(slug: string): string | null {
   if (!SLUG.test(slug)) return 'Use 1-32 lowercase letters, digits or dashes, not starting or ending with a dash.';

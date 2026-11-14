@@ -228,6 +228,7 @@ describe('sign-up', () => {
     for (const [fields, message] of [
       [{ slug: 'Not A Slug!' }, 'lowercase letters'],
       [{ slug: 'cloud' }, 'reserved'],
+      [{ slug: 'mcp' }, 'reserved'],
       [{ slug: 'taken' }, 'already taken'],
       [{ name: '' }, 'Give your workspace a name'],
       [{ email: 'nope' }, 'valid email'],
