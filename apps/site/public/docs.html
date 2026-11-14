@@ -79,12 +79,19 @@
           change, the agent finds the code from the thread's page, selector and element text, makes the change, replies with what it did and
           resolves the thread. You check it on the live element.
         </p>
-        <p>Add your server to the agent. The first time it connects, it opens your server in the browser so you can sign in and approve it:</p>
-        <pre><code>claude mcp add --transport http openparley https://parley.example.com/mcp</code></pre>
         <p>
-          In Claude Code, run <code>/mcp</code> and choose Authenticate. Other MCP clients: add <code>https://parley.example.com/mcp</code> as a
-          remote server (Streamable HTTP); clients that support MCP's OAuth sign-in find everything else themselves. Then ask the agent to "work through
-          the open OpenParley threads".
+          On OpenParley Cloud, every workspace uses the same URL. The first time the agent connects, it opens a browser: sign in (GitHub or an
+          emailed link), pick the workspace if you're in more than one, and approve the agent:
+        </p>
+        <pre><code>claude mcp add --transport http openparley https://mcp.openparley.dev/mcp</code></pre>
+        <p>
+          In Claude Code, run <code>/mcp</code> and choose Authenticate. Cursor and VS Code have one-click <strong>Add to Cursor</strong> and
+          <strong>Add to VS Code</strong> buttons on your workspace's admin page. Other MCP clients: add <code>https://mcp.openparley.dev/mcp</code>
+          as a remote server (Streamable HTTP); clients that support MCP's OAuth sign-in find everything else themselves. Then ask the agent to "work
+          through the open OpenParley threads".
+        </p>
+        <p>
+          Self-hosting? Use your own server's URL instead, e.g. <code>https://parley.example.com/mcp</code>; it signs in and approves the same way.
         </p>
         <p>
           For an agent that can't sign in, create a token on the admin page under <strong>Agents</strong> instead. It's shown once, with the command:
@@ -165,6 +172,7 @@ docker logs &lt;container&gt;                        # the setup link</code></pr
           <tr><td><code>SETUP_TOKEN</code></td><td>random</td><td>Fix the first-run setup token instead of generating one.</td></tr>
           <tr><td><code>RESEND_API_KEY</code>, <code>MAIL_FROM</code></td><td>off</td><td>Send invites and notifications by email through <a href="https://resend.com">Resend</a>. Without them, the admin page shows the invite link to send yourself, and there are no notifications.</td></tr>
           <tr><td><code>PRIVACY_URL</code></td><td>none</td><td>Your privacy policy, linked where people sign in or create an account.</td></tr>
+          <tr><td><code>GITHUB_CLIENT_ID</code>, <code>GITHUB_CLIENT_SECRET</code></td><td>off</td><td>Sign in with GitHub, through a <a href="https://github.com/settings/developers">GitHub OAuth app</a> with callback <code>PUBLIC_URL/auth/github/callback</code>. People connect GitHub on the admin page; it signs them in by GitHub account, or by an email address both GitHub and this server confirmed.</td></tr>
           <tr><td><code>NOTIFY_QUIET_SECONDS</code></td><td><code>60</code></td><td>Updates on a thread are emailed once it has been quiet this long (at the latest after 10 minutes).</td></tr>
           <tr><td><code>OVERLAY_DIR</code></td><td>the repo's build output</td><td>Folder with the built overlay files.</td></tr>
         </table>

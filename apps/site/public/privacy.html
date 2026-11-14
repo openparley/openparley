@@ -126,12 +126,32 @@
           on comments they wrote, so the conversation still makes sense. To be erased completely, ask the workspace's admin, or us.
         </p>
 
+        <h2 id="account">Your OpenParley account (Cloud)</h2>
+        <ul>
+          <li>
+            <strong>What:</strong> your email address, confirmed by GitHub or by a sign-in link we email you; if you sign in with GitHub, your
+            GitHub account id, username and name. We ask GitHub only for your profile and verified email addresses, nothing from your
+            repositories, and don't keep GitHub's access token. To show you your workspaces, we keep a list of who belongs to which workspace:
+            their account id in that workspace, role, GitHub id, and email address once it's confirmed.
+          </li>
+          <li>
+            <strong>Why:</strong> to sign you in once for all your workspaces, list them, sign you in to them, and connect your coding agents
+            through one address (<code>mcp.openparley.dev</code>). Legal basis: performing our agreement with you.
+          </li>
+          <li>
+            <strong>How long:</strong> while you have the account. A workspace's members drop out of the list as soon as they leave the workspace.
+            Sign-in links work once, for 30 minutes.
+          </li>
+        </ul>
+
         <h2 id="storage">Cookies and browser storage</h2>
         <p>We only use what's needed for the service to work, so there is nothing to consent to.</p>
         <table>
           <tr><th>Name</th><th>Where</th><th>What for</th><th>How long</th></tr>
           <tr><td><code>openparley_session</code> (cookie)</td><td>Your workspace's address</td><td>Keeps you signed in</td><td>30 days</td></tr>
           <tr><td><code>openparley_signup</code> (cookie)</td><td>cloud.openparley.dev</td><td>Shows the setup link only to the browser that signed up</td><td>7 days</td></tr>
+          <tr><td><code>openparley_account</code> (cookie)</td><td>cloud.openparley.dev</td><td>Keeps you signed in to your OpenParley account</td><td>30 days</td></tr>
+          <tr><td><code>openparley_github</code> (cookie)</td><td>cloud.openparley.dev and your workspace's address</td><td>Ties a GitHub sign-in to the browser that started it</td><td>10 minutes</td></tr>
           <tr>
             <td><code>openparley:v1:*</code> (local storage)</td>
             <td>Sites that use OpenParley</td>
@@ -149,6 +169,10 @@
             triggered them.
           </li>
           <li><strong>Polar Software, Inc.</strong>, United States: merchant of record for paid plans (see <a href="#signup">above</a>).</li>
+          <li>
+            <strong>GitHub, Inc.</strong>, United States: only if you choose to sign in with GitHub. GitHub tells us who you are; we don't send
+            GitHub anything about you.
+          </li>
         </ul>
         <p>
           Where data goes to the United States, this happens under the EU-U.S. Data Privacy Framework or the European Commission's standard
