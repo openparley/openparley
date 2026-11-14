@@ -5,6 +5,7 @@ export const SYNC_URL = 'http://localhost:4174';
 export const CLOUD_PORT = 4175;
 export const CLOUD_DATA = '/tmp/openparley-e2e-cloud';
 export const FAKE_POLAR_URL = 'http://localhost:4176';
+export const FAKE_GITHUB_URL = 'http://localhost:4177';
 const POLAR_SECRET = `whsec_${Buffer.from('openparley e2e webhook secret').toString('base64')}`;
 
 export default defineConfig({
@@ -37,7 +38,17 @@ export default defineConfig({
         POLAR_API_URL: FAKE_POLAR_URL,
         POLAR_PORTAL_URL: `${FAKE_POLAR_URL}/portal`,
         SITE_URL,
+        GITHUB_CLIENT_ID: 'e2e',
+        GITHUB_CLIENT_SECRET: 'e2e',
+        GITHUB_WEB_URL: FAKE_GITHUB_URL,
+        GITHUB_API_URL: FAKE_GITHUB_URL,
       },
+    },
+    {
+      command: 'bun ../apps/sync/dev/fake-github.ts',
+      url: `${FAKE_GITHUB_URL}/user`,
+      reuseExistingServer: false,
+      env: { PORT: '4177' },
     },
     {
       command: 'bun ../ee/cloud/dev/fake-polar.ts',

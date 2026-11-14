@@ -701,8 +701,8 @@ button.secondary{background:#fff;color:#14181f;border-color:#cfc3a8}button.dange
 fieldset{border:0;padding:0;margin:12px 0 0}legend{font-weight:600;padding:0;margin:0 0 4px}fieldset .check{display:block;margin:4px 0}fieldset .check input{margin:0 6px 0 0}
 summary{cursor:pointer;margin:12px 0 0;color:#1f5a4c}details pre{margin:8px 0 0;word-break:normal;overflow-wrap:anywhere}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}table{width:100%;border-collapse:collapse}td{padding:8px 4px;border-top:1px solid #e7dec9;vertical-align:middle}
-a.button{display:inline-block;font-weight:700;padding:8px 16px;border-radius:999px;border:1px solid #2c7f6b;background:#2c7f6b;color:#fff;text-decoration:none}a.button.github{background:#14181f;border-color:#14181f}
-.notice{background:#f3ecdc;border:1px solid #e7dec9;padding:10px 12px;border-radius:12px;margin:0 0 12px}button.link{background:none;border:0;padding:0;margin:0;color:#1f5a4c;font-weight:400;text-decoration:underline}
+a.button{display:inline-block;font-weight:700;padding:8px 16px;border-radius:999px;border:1px solid #2c7f6b;background:#2c7f6b;color:#fff;text-decoration:none}a.button.github{background:#14181f;border-color:#14181f}a.button.secondary{background:#fff;color:#14181f;border-color:#cfc3a8}
+.notice{background:#f3ecdc;border:1px solid #e7dec9;padding:10px 12px;border-radius:12px;margin:0 0 12px}.ok+.notice{margin-top:8px}button.link{background:none;border:0;padding:0;margin:0;color:#1f5a4c;font-weight:400;text-decoration:underline}
 `;
 
 const COPY_SCRIPT = `document.addEventListener('change', (event) => {

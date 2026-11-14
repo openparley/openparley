@@ -63,3 +63,8 @@ export function startFakeGithub(options: { port?: number; users?: FakeGithubUser
     },
   });
 }
+
+if (import.meta.main) {
+  const server = startFakeGithub({ port: Number(process.env.PORT ?? 4011) });
+  console.log(`Fake GitHub on ${server.url}`);
+}
