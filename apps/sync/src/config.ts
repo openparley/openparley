@@ -29,6 +29,8 @@ export interface Config {
    * labelled `label`); `accountUrl`: its own sign-in (e.g. an emailed link). `next` is appended to both.
    */
   trustedSignIn?: { key: string; startUrl: string | null; label: string; accountUrl?: string | null } | null;
+  /** Where agents connect. Default `<PUBLIC_URL>/mcp`; a host in front of many servers (OpenParley Cloud) gives its shared URL. */
+  mcpUrl?: string | null;
   /** "Sign in with GitHub" through this server's own GitHub OAuth app (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`). */
   github?: GithubApp | null;
 }

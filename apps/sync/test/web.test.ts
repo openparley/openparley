@@ -273,3 +273,27 @@ describe('invites by email', () => {
     expect(page).not.toContain('href="https://*.preview');
   });
 });
+
+describe('agents section', () => {
+  test('self-hosted: this server’s /mcp, with one-click installs for Cursor and VS Code', async () => {
+    const { owner } = harness();
+    const { b } = await owner();
+    const html = await (await b.request('/admin')).text();
+    expect(html).toContain(`claude mcp add --transport http openparley ${PUBLIC_URL}/mcp`);
+    const cursor = /href="(cursor:\/\/anysphere\.cursor-deeplink\/mcp\/install\?[^"]+)"/.exec(html)![1]!.replaceAll('&amp;', '&');
+    const config = JSON.parse(Buffer.from(new URL(cursor).searchParams.get('config')!, 'base64').toString());
+    expect(config).toEqual({ url: `${PUBLIC_URL}/mcp` });
+    const vscode = /href="(vscode:mcp\/install\?[^"]+)"/.exec(html)![1]!;
+    expect(JSON.parse(decodeURIComponent(vscode.slice('vscode:mcp/install?'.length)))).toEqual({ name: 'openparley', type: 'http', url: `${PUBLIC_URL}/mcp` });
+    expect(html).not.toContain('When it asks for a workspace');
+  });
+
+  test('a host with a shared MCP URL: that URL everywhere agents connect, in the setup prompt too', async () => {
+    const { owner } = harness({ config: { mcpUrl: 'https://mcp.example.test/mcp' } });
+    const { b } = await owner();
+    const html = await (await b.request('/admin')).text();
+    expect(html).toContain('claude mcp add --transport http openparley https://mcp.example.test/mcp');
+    expect(html).toContain('claude mcp add --scope project --transport http openparley https://mcp.example.test/mcp');
+    expect(html).toContain('When it asks for a workspace, pick <strong>parley</strong>');
+  });
+});

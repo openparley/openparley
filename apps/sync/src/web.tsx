@@ -458,6 +458,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
         nonce={c.get('nonce')}
         canConfirmEmail={!!mailer}
         external={external}
+        mcpUrl={config.mcpUrl ?? `${config.publicUrl}/mcp`}
       />,
       status,
     );
@@ -874,6 +875,16 @@ function LoginPage(props: { privacyUrl: string | null; next: string; email?: str
   );
 }
 
+/** Cursor's one-click install link (cursor.com/docs: MCP deeplinks). */
+function cursorInstall(url: string): string {
+  return `cursor://anysphere.cursor-deeplink/mcp/install?${new URLSearchParams({ name: 'openparley', config: Buffer.from(JSON.stringify({ url })).toString('base64') })}`;
+}
+
+/** VS Code's one-click install link (`vscode:mcp/install?<config>`). */
+function vscodeInstall(url: string): string {
+  return `vscode:mcp/install?${encodeURIComponent(JSON.stringify({ name: 'openparley', type: 'http', url }))}`;
+}
+
 /** How you sign in here. Shown only where there's a choice (GitHub available, or already linked). */
 function Account({ user, external }: { user: User; external: External }) {
   if (!external && !user.githubId) return null;
@@ -1099,8 +1110,9 @@ function AdminPage(props: {
   nonce: string;
   canConfirmEmail: boolean;
   external: External;
+  mcpUrl: string;
 }) {
-  const { user, projects, members, invites, publicUrl, limits, limitsUrl, threadsCreated, agents, notifications, flash, nonce, canConfirmEmail, external } = props;
+  const { user, projects, members, invites, publicUrl, limits, limitsUrl, threadsCreated, agents, notifications, flash, nonce, canConfirmEmail, external, mcpUrl } = props;
   const admin = user.role !== 'member';
   return (
     <Page
@@ -1239,10 +1251,10 @@ function AdminPage(props: {
                 <summary>Show the prompt</summary>
                 <pre
                   id={`prompt-${project.id}`}
-                  data-members={setupPrompt({ server: publicUrl, project: project.id, launcher: 'members' })}
-                  data-always={setupPrompt({ server: publicUrl, project: project.id, launcher: 'always' })}
+                  data-members={setupPrompt({ server: publicUrl, project: project.id, launcher: 'members', mcp: mcpUrl })}
+                  data-always={setupPrompt({ server: publicUrl, project: project.id, launcher: 'always', mcp: mcpUrl })}
                 >
-                  {setupPrompt({ server: publicUrl, project: project.id, launcher: 'members' })}
+                  {setupPrompt({ server: publicUrl, project: project.id, launcher: 'members', mcp: mcpUrl })}
                 </pre>
               </details>
               <form method="post" action={`/admin/projects/${project.id}`} class="row">
@@ -1366,11 +1378,25 @@ function AdminPage(props: {
       </p>
       <section>
         <strong>Connect by signing in</strong>
-        <p style="margin:4px 0 0">Add this server to your agent. The first time, it opens this site so you can approve it.</p>
-        <pre>{`claude mcp add --transport http openparley ${publicUrl}/mcp`}</pre>
+        <p style="margin:4px 0 0">Add OpenParley to your agent. The first time, it opens a browser so you can approve it.</p>
+        <p class="row" style="margin:8px 0 0">
+          <a class="button secondary" href={cursorInstall(mcpUrl)}>
+            Add to Cursor
+          </a>
+          <a class="button secondary" href={vscodeInstall(mcpUrl)}>
+            Add to VS Code
+          </a>
+        </p>
+        <label>Claude Code</label>
+        <pre style="margin:0">{`claude mcp add --transport http openparley ${mcpUrl}`}</pre>
         <span class="muted">
-          Then run <code>/mcp</code> in Claude Code and choose Authenticate. Other agents: add <code>{`${publicUrl}/mcp`}</code> as a remote (HTTP) MCP
-          server.
+          Then run <code>/mcp</code> and choose Authenticate. Other agents: add <code>{mcpUrl}</code> as a remote (HTTP) MCP server.
+          {mcpUrl !== `${publicUrl}/mcp` && (
+            <>
+              {' '}
+              When it asks for a workspace, pick <strong>{new URL(publicUrl).host.split('.')[0]}</strong>.
+            </>
+          )}
         </span>
       </section>
       {agents.length > 0 && (

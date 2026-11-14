@@ -21,8 +21,9 @@ export function scriptTag(server: string, project: string, launcher: SnippetLaun
   return `<script src="${server}/openparley.js" data-project="${project}"${attribute} defer></script>`;
 }
 
-export function setupPrompt({ server, project, launcher = 'members' }: { server?: string; project?: string; launcher?: SnippetLauncher } = {}): string {
+export function setupPrompt({ server, project, launcher = 'members', mcp }: { server?: string; project?: string; launcher?: SnippetLauncher; mcp?: string } = {}): string {
   const url = server ?? 'https://YOUR-WORKSPACE.openparley.dev';
+  const mcpUrl = mcp ?? `${url}/mcp`;
   const key = project ?? 'YOUR_PROJECT_KEY';
   const members = launcher === 'members';
   const ask =
@@ -58,11 +59,11 @@ ${
 
 ## 2. Connect the OpenParley MCP server
 
-URL: \`${url}/mcp\` (Streamable HTTP). It signs in through the browser (OAuth), so there is no API key to store.
+URL: \`${mcpUrl}\` (Streamable HTTP). It signs in through the browser (OAuth), so there is no API key to store.
 
-- Claude Code: run \`claude mcp add --scope project --transport http openparley ${url}/mcp\` (writes \`.mcp.json\`; safe to commit, it holds no secret).
-- Cursor: add \`"openparley": { "url": "${url}/mcp" }\` under \`mcpServers\` in \`.cursor/mcp.json\`.
-- VS Code: add \`"openparley": { "type": "http", "url": "${url}/mcp" }\` under \`servers\` in \`.vscode/mcp.json\`.
+- Claude Code: run \`claude mcp add --scope project --transport http openparley ${mcpUrl}\` (writes \`.mcp.json\`; safe to commit, it holds no secret).
+- Cursor: add \`"openparley": { "url": "${mcpUrl}" }\` under \`mcpServers\` in \`.cursor/mcp.json\`.
+- VS Code: add \`"openparley": { "type": "http", "url": "${mcpUrl}" }\` under \`servers\` in \`.vscode/mcp.json\`.
 - Other agents: tell the user to add the URL as a remote (HTTP) MCP server.
 
 The user then reloads the agent and signs in once (Claude Code: \`/mcp\`, pick openparley, Authenticate).

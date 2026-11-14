@@ -241,6 +241,7 @@ export class Cloud {
         privacyUrl: this.config.siteUrl ? `${this.config.siteUrl}/privacy` : null,
         mail: this.config.mail,
         notifyQuietMs: this.config.notifyQuietMs,
+        mcpUrl: `${this.mcpUrl()}/mcp`,
         // GitHub can't call back to every workspace, so its sign-in runs on the control plane, which hands off.
         trustedSignIn: {
           key: this.handoffKey(tenant),
