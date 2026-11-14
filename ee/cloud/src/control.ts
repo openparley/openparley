@@ -183,6 +183,39 @@ const MIGRATIONS = [
   ALTER TABLE tenants ADD COLUMN members_synced_at INTEGER;
   ALTER TABLE tenants ADD COLUMN verified_owner_email TEXT;
   ALTER TABLE signups ADD COLUMN account_id TEXT;
+  CREATE TABLE mcp_clients (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    redirect_uris TEXT NOT NULL,
+    secret_hash TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE mcp_workspace_clients (
+    mcp_client_id TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
+    workspace_client_id TEXT NOT NULL,
+    PRIMARY KEY (mcp_client_id, tenant_id)
+  );
+  CREATE TABLE mcp_requests (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL,
+    client_id TEXT NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    state TEXT,
+    code_challenge TEXT NOT NULL,
+    tenant_id TEXT,
+    verifier TEXT,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE TABLE mcp_codes (
+    code_hash TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
+    sealed TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
   `,
 ];
 

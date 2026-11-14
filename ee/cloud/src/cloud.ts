@@ -7,6 +7,7 @@ import { controlPlane } from './control-plane';
 import { ControlStore, type NewTenant, type Tenant } from './control';
 import { urlFor, type CloudConfig } from './config';
 import { logMailer, resendMailer, type Mailer } from './mailer';
+import { BrokerStore, mcpResource } from './mcp-broker';
 import { PolarClient } from './polar';
 
 interface Open {
@@ -38,12 +39,14 @@ type Server = { requestIP(request: Request): { address: string; family: string; 
 export class Cloud {
   readonly control: ControlStore;
   readonly accounts: AccountStore;
+  readonly broker: BrokerStore;
   readonly billing: Billing;
   private readonly live = new Map<string, Open>();
   /** Shared with every workspace, so their invite emails go out the same way as Cloud's own. */
   private readonly mailer: Mailer;
   private readonly sweeper: ReturnType<typeof setInterval>;
   private readonly controlApp: ReturnType<typeof controlPlane>;
+  private readonly mcpApp: ReturnType<typeof mcpResource>;
 
   constructor(
     private readonly config: CloudConfig,
@@ -51,16 +54,19 @@ export class Cloud {
   ) {
     this.control = new ControlStore(config.dataDir);
     this.accounts = new AccountStore(this.control.db);
+    this.broker = new BrokerStore(this.control.db);
     this.mailer = deps.mailer ?? (config.mail ? resendMailer(config.mail) : logMailer);
     this.billing = new Billing(this, config, this.mailer);
     const polar = config.polar ? new PolarClient(config.polar, deps.fetch) : null;
     this.controlApp = controlPlane({ cloud: this, config, polar });
+    this.mcpApp = mcpResource(this);
     this.sweeper = setInterval(() => this.closeIdle(), Math.min(60_000, config.idleMs));
   }
 
   fetch = (request: Request, server?: Server): Response | Promise<Response> => {
     const host = hostOf(request);
     if (host === `cloud.${this.config.domain}` || host === this.config.domain) return this.controlApp.fetch(request, server);
+    if (host === `mcp.${this.config.domain}`) return this.mcpApp.fetch(request, server);
     const suffix = `.${this.config.domain}`;
     const slug = host.endsWith(suffix) ? host.slice(0, -suffix.length) : null;
     // Every request re-reads the tenant row (an indexed lookup), so suspending or changing
@@ -114,6 +120,16 @@ export class Cloud {
 
   controlUrl(): string {
     return urlFor(this.config, `cloud.${this.config.domain}`);
+  }
+
+  /** The shared MCP URL's host: `https://mcp.<domain>` (its endpoint is `/mcp`). */
+  mcpUrl(): string {
+    return urlFor(this.config, `mcp.${this.config.domain}`);
+  }
+
+  /** The workspace's own data (opening it if needed): for registering Cloud as an OAuth client there. */
+  workspaceRepo(tenant: Tenant): Instance['repo'] {
+    return this.instanceFor(tenant).repo;
   }
 
   /** Sends an email the way workspaces send theirs (Resend, or the log in development). */

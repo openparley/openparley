@@ -14,6 +14,7 @@ import { isPaidPlanId, isPlanId, PAID_PLANS, planLimits, PLANS, TRIAL_DAYS, type
 import { verifyWebhook, WebhookVerificationError, type PolarClient } from './polar';
 import { Message, Page } from './views';
 import { accountRoutes, safeNext, WorkspacesPage, type AccountEnv } from './account-routes';
+import { brokerRoutes } from './mcp-broker';
 
 const SIGNUP_COOKIE = 'openparley_signup';
 /** How long a slug stays reserved if Polar doesn't tell us when the checkout expires. */
@@ -80,6 +81,10 @@ export function controlPlane({ cloud, config, polar }: Options) {
     return c.json({ ok: true, outcome }, 202);
   });
 
+  // Agents call the shared MCP URL's token endpoints without cookies or a browser Origin.
+  const broker = brokerRoutes(cloud);
+  broker.api(app, (c) => clientIp(c, config.trustProxy));
+
   app.use('*', csrf({ origin: [base, urlFor(config, config.domain)] }));
   app.use('*', async (c, next) => {
     c.set('nonce', randomToken(16));
@@ -95,6 +100,7 @@ export function controlPlane({ cloud, config, polar }: Options) {
   });
 
   accountRoutes(app, { cloud, config, base, clientIp: (c) => clientIp(c, config.trustProxy) });
+  broker.browser(app, config.siteUrl);
 
   app.get('/', (c) => {
     const account = c.get('account');
