@@ -5,6 +5,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { ACCOUNT_SESSION_TTL, type Account } from './accounts';
 import type { Cloud } from './cloud';
 import type { CloudConfig } from './config';
+import type { Tenant } from './control';
 import { isPlanId, PLANS } from './plans';
 import { Message, Page } from './views';
 
@@ -167,6 +168,36 @@ export function accountRoutes(app: Hono<AccountEnv>, { cloud, config, base, clie
 
   // --- your workspaces -----------------------------------------------------------
 
+  // --- renaming (owners) ---------------------------------------------------------
+
+  const ownedBy = (account: Account, id: string) => {
+    const tenant = cloud.control.findById(id);
+    const owner = tenant && cloud.accounts.memberships(account).some((m) => m.tenantId === tenant.id && m.role === 'owner');
+    return owner ? tenant : null;
+  };
+
+  app.get('/rename/:id', (c) => {
+    const account = c.get('account');
+    if (!account) return c.redirect(`/login?next=${encodeURIComponent(c.req.path)}`);
+    const tenant = ownedBy(account, c.req.param('id'));
+    if (!tenant) return c.html(<Message title="Owners only">Only the owner of a workspace can change its address.</Message>, 403);
+    return c.html(<RenamePage tenant={tenant} cloud={cloud} account={account} value={tenant.slug} />);
+  });
+
+  app.post('/rename/:id', async (c) => {
+    const account = c.get('account');
+    if (!account) return c.redirect('/login', 303);
+    const tenant = ownedBy(account, c.req.param('id'));
+    if (!tenant) return c.html(<Message title="Owners only">Only the owner of a workspace can change its address.</Message>, 403);
+    const slug = String((await c.req.parseBody()).slug ?? '').trim().toLowerCase();
+    try {
+      cloud.rename(tenant, slug);
+    } catch (error) {
+      return c.html(<RenamePage tenant={tenant} cloud={cloud} account={account} value={slug} error={(error as Error).message} />, 400);
+    }
+    return c.redirect('/', 303);
+  });
+
   // Hands off to any workspace: the workspace decides who you are there (a member, someone with an invite, or nobody).
   app.get('/open/:id', (c) => {
     const account = c.get('account');
@@ -209,6 +240,11 @@ export function WorkspacesPage({ account, cloud, siteUrl }: { account: Account; 
                   </span>
                 </td>
                 <td class="actions">
+                  {m.role === 'owner' && (
+                    <a class="muted" style="margin-right:12px" href={`/rename/${tenant!.id}`}>
+                      Change address
+                    </a>
+                  )}
                   <a class={i === 0 ? 'button' : 'button secondary'} href={`/open/${tenant!.id}`}>
                     Open
                   </a>
@@ -226,6 +262,33 @@ export function WorkspacesPage({ account, cloud, siteUrl }: { account: Account; 
           Billing for {tenant!.name}: <a href={`/workspaces/${tenant!.slug}`}>plan and upgrades</a>.
         </p>
       ))}
+    </Page>
+  );
+}
+
+function RenamePage({ tenant, cloud, account, value, error }: { tenant: Tenant; cloud: Cloud; account: Account; value: string; error?: string }) {
+  const current = new URL(cloud.workspaceUrl(tenant.slug)).host;
+  const domain = current.slice(tenant.slug.length + 1);
+  return (
+    <Page title={`Address of ${tenant.name}`} aside={<AccountAside account={account} />}>
+      <h1>Address of {tenant.name}</h1>
+      {error && (
+        <p class="error" role="alert">
+          {error}
+        </p>
+      )}
+      <form method="post" class="box">
+        <label for="slug">Address</label>
+        <div class="address">
+          <input id="slug" name="slug" required maxlength={32} pattern="[a-z0-9](?:[a-z0-9\-]{0,30}[a-z0-9])?" value={value} />
+          <span class="muted">.{domain}</span>
+        </div>
+        <p class="notice" style="margin:12px 0 0">
+          <strong>{current}</strong> keeps working: script tags, share links, connected agents and sign-in on your sites. Opening the admin page there
+          takes people to the new address.
+        </p>
+        <button type="submit">Save</button>
+      </form>
     </Page>
   );
 }

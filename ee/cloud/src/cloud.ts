@@ -71,7 +71,10 @@ export class Cloud {
     const slug = host.endsWith(suffix) ? host.slice(0, -suffix.length) : null;
     // Every request re-reads the tenant row (an indexed lookup), so suspending or changing
     // limits from the CLI or a billing webhook takes effect immediately.
-    const tenant = slug ? this.control.find(slug) : null;
+    let tenant = slug ? this.control.find(slug) : null;
+    // An old address after a rename: script tags, share links, API and sign-in keep working there.
+    const renamed = !tenant && slug ? this.control.aliasOf(slug) : null;
+    tenant ??= renamed;
     if (!tenant) return page(404, 'No workspace here', `There is no OpenParley workspace at ${host}.`);
     if (tenant.status === 'suspended') {
       this.evict(tenant.id);
@@ -80,8 +83,23 @@ export class Cloud {
       if (isNavigation(request)) return Response.redirect(`${this.controlUrl()}/workspaces/${tenant.slug}`, 302);
       return page(402, 'Workspace paused', `The ${tenant.name} workspace is paused. Its data is kept.`);
     }
+    if (renamed) {
+      const url = new URL(request.url);
+      const current = this.workspaceUrl(tenant.slug);
+      // People opening the admin pages land on the new address; everything else is served right here.
+      if (isNavigation(request) && (url.pathname === '/' || url.pathname.startsWith('/admin'))) return Response.redirect(`${current}${url.pathname}${url.search}`, 302);
+      request = asWorkspace(request, `${urlFor(this.config, host)}`, current);
+    }
     return this.instanceFor(tenant).app.fetch(request, server);
   };
+
+  /** Moves a workspace to a new address; the old one keeps working as an alias. */
+  rename(tenant: Tenant, slug: string): Tenant {
+    const renamed = this.control.rename(tenant.id, slug);
+    // Its server knows its own URL (links, CSRF, OAuth issuer): reopen it with the new one.
+    this.evict(tenant.id);
+    return renamed;
+  }
 
   /** Creates the workspace and its database. Returns the owner's one-time setup link. */
   provision(input: NewTenant): { tenant: Tenant; setupUrl: string } {
@@ -263,6 +281,16 @@ export class Cloud {
     this.live.delete(id);
     entry.instance.close();
   }
+}
+
+/**
+ * A request to an old address, as the workspace sees it: forms posted from the old address pass its
+ * CSRF check, which compares the Origin with its (new) URL. Other origins stay as they are.
+ */
+function asWorkspace(request: Request, aliasOrigin: string, currentOrigin: string): Request {
+  const headers = new Headers(request.headers);
+  if (headers.get('origin') === aliasOrigin) headers.set('origin', currentOrigin);
+  return new Request(request, { headers });
 }
 
 function isNavigation(request: Request): boolean {

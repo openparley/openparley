@@ -184,3 +184,57 @@ describe('Cloud accounts', () => {
     expect(reopened.accounts.unsyncedTenantIds()).toHaveLength(0);
   });
 });
+
+describe('renaming a workspace', () => {
+  test('the old address keeps serving script, API and sign-in; admin visits move to the new one', async () => {
+    const { cloud, mails } = makeCloud();
+    const { url, owner, tenant } = await workspace(cloud, 'acme');
+    await confirmEmail(owner, url, mails);
+    const me = browser(cloud);
+    await me.go(`${CONTROL}/auth/github`);
+    expect((await me.go(`${CONTROL}/`)).html).toContain('Change address');
+    expect((await me.go(`${CONTROL}/rename/${tenant.id}`)).html).toContain('acme.parley.test</strong> keeps working');
+    const saved = await me.post(`${CONTROL}/rename/${tenant.id}`, { slug: 'acme-inc' });
+    expect(saved.html).toContain('acme-inc.parley.test · owner');
+    expect(cloud.control.findById(tenant.id)!.slug).toBe('acme-inc');
+
+    // Old address: health and API answer, the admin page redirects, sign-in works there (the popup needs that).
+    expect((await cloud.fetch(new Request('https://acme.parley.test/health'))).status).toBe(200);
+    const admin = await cloud.fetch(new Request('https://acme.parley.test/admin', { headers: { 'sec-fetch-mode': 'navigate' } }));
+    expect(admin.headers.get('location')).toBe('https://acme-inc.parley.test/admin');
+    const visitor = browser(cloud);
+    const login = await visitor.post('https://acme.parley.test/login', { email: 'olivia@acme.test', password: 'correct horse battery', next: '/connect?x=1' });
+    expect(login.url).toStartWith('https://acme.parley.test/connect');
+    // A form posted from another site still fails the CSRF check.
+    const forged = await cloud.fetch(
+      new Request('https://acme.parley.test/login', { method: 'POST', headers: { origin: 'https://evil.test', 'content-type': 'application/x-www-form-urlencoded' }, body: 'email=x&password=y' }),
+    );
+    expect(forged.status).toBe(403);
+
+    // Nobody else can take the old address; the owner can take it back.
+    expect(() => cloud.provision({ slug: 'acme', name: 'Squatter' })).toThrow('already exists');
+    expect(cloud.control.slugAvailable('acme', null)).toBe(false);
+    expect((await me.post(`${CONTROL}/rename/${tenant.id}`, { slug: 'acme' })).res.status).toBe(200);
+    expect(cloud.control.findById(tenant.id)!.slug).toBe('acme');
+    expect(cloud.control.aliasOf('acme-inc')!.id).toBe(tenant.id);
+  });
+
+  test('only the owner changes the address, and only to a free one', async () => {
+    const { cloud, mails } = makeCloud();
+    const { url, owner, tenant } = await workspace(cloud, 'acme');
+    await workspace(cloud, 'globex', 'someone@else.test');
+    await confirmEmail(owner, url, mails);
+    const me = browser(cloud);
+    await me.go(`${CONTROL}/auth/github`);
+    const taken = await me.post(`${CONTROL}/rename/${tenant.id}`, { slug: 'globex' });
+    expect(taken.res.status).toBe(400);
+    expect(taken.html).toContain('globex is already taken');
+    expect((await me.post(`${CONTROL}/rename/${tenant.id}`, { slug: 'mcp' })).html).toContain('reserved');
+
+    const invited = await owner.post(`${url}/admin/invites`, { role: 'admin' });
+    const inviteUrl = /(https:\/\/acme\.parley\.test\/invite\/[\w-]+)/.exec(invited.html)![1]!;
+    const mia = browser(cloud, 'mia-dev');
+    await mia.go(`${CONTROL}/auth/github?${new URLSearchParams({ workspace: tenant.id, next: new URL(inviteUrl).pathname })}`);
+    expect((await mia.go(`${CONTROL}/rename/${tenant.id}`)).res.status).toBe(403);
+  });
+});

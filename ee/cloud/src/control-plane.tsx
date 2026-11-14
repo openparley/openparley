@@ -335,6 +335,8 @@ export function controlPlane({ cloud, config, polar }: Options) {
   );
 
   app.get('/workspaces/:slug', (c) => {
+    const old = cloud.control.find(c.req.param('slug')) ? null : cloud.control.aliasOf(c.req.param('slug'));
+    if (old) return c.redirect(`/workspaces/${old.slug}${new URL(c.req.url).search}`);
     const tenant = cloud.control.find(c.req.param('slug'));
     if (!tenant) return c.html(<Message title="No such workspace">There is no OpenParley workspace with that address.</Message>, 404);
     return c.html(workspacePage(tenant, { renewing: c.req.query('renewing') === '1' }));

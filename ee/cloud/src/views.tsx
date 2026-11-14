@@ -20,6 +20,7 @@ header{display:flex;justify-content:space-between;align-items:center;margin-bott
 fieldset{border:0;padding:0;margin:12px 0 0}legend{font-weight:600;margin-bottom:4px;padding:0}
 .choice{display:flex;gap:8px;align-items:center;font-weight:400;margin:6px 0}.choice input{width:auto}
 .ok{background:#ddf1ea;border:1px solid #7cc7b2;padding:10px 12px;border-radius:12px}
+.notice{background:#f3ecdc;border:1px solid #e7dec9;padding:10px 12px;border-radius:12px}
 .button.github{background:#14181f;border-color:#14181f}button.secondary,.button.secondary{background:#fff;color:#14181f;border-color:#cfc3a8}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{margin:0}.or{display:flex;gap:12px;align-items:center;color:#5e6672;margin:16px 0 0}.or::before,.or::after{content:'';flex:1;border-top:1px solid #e7dec9}
 table{width:100%;border-collapse:collapse}td{padding:10px 4px;border-top:1px solid #e7dec9;vertical-align:middle}tr:first-child td{border-top:0}td.actions{text-align:right}td.actions .button{margin:0}

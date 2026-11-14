@@ -183,6 +183,11 @@ const MIGRATIONS = [
   ALTER TABLE tenants ADD COLUMN members_synced_at INTEGER;
   ALTER TABLE tenants ADD COLUMN verified_owner_email TEXT;
   ALTER TABLE signups ADD COLUMN account_id TEXT;
+  CREATE TABLE tenant_aliases (
+    slug TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
   CREATE TABLE mcp_clients (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -328,7 +333,7 @@ export class ControlStore {
   create(input: NewTenant): Tenant {
     const problem = slugProblem(input.slug);
     if (problem) throw new Error(problem);
-    if (this.find(input.slug)) throw new Error(`Workspace "${input.slug}" already exists.`);
+    if (this.find(input.slug) || this.aliasOf(input.slug)) throw new Error(`Workspace "${input.slug}" already exists.`);
     const id = Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString('hex');
     const row: Row = {
       id,
@@ -362,6 +367,37 @@ export class ControlStore {
   find(slug: string): Tenant | null {
     const row = this.db.query<Row, { slug: string }>('SELECT * FROM tenants WHERE slug = $slug').get({ slug });
     return row ? toTenant(row) : null;
+  }
+
+  /** The workspace an old address (from before a rename) belongs to. */
+  aliasOf(slug: string): Tenant | null {
+    const row = this.db.query<Row, { slug: string }>('SELECT t.* FROM tenant_aliases a JOIN tenants t ON t.id = a.tenant_id WHERE a.slug = $slug').get({ slug });
+    return row ? toTenant(row) : null;
+  }
+
+  /**
+   * Gives a workspace a new address. The old one stays an alias (forever: it's in script tags and
+   * share links), so nobody else can take it. Renaming back to an old address takes it back.
+   */
+  rename(id: string, slug: string): Tenant {
+    const problem = slugProblem(slug);
+    if (problem) throw new Error(problem);
+    return this.transaction(() => {
+      const tenant = this.findById(id);
+      if (!tenant) throw new Error('No such workspace.');
+      if (tenant.slug === slug) return tenant;
+      const alias = this.aliasOf(slug);
+      const ownAlias = alias?.id === id;
+      if (this.find(slug) || (alias && !ownAlias) || (!ownAlias && !this.slugAvailable(slug, null))) throw new Error(`${slug} is already taken.`);
+      // Sign-ups and renewal links name the workspace by slug; they move along in the same transaction.
+      this.db.exec('PRAGMA defer_foreign_keys = ON');
+      this.db.query('DELETE FROM tenant_aliases WHERE slug = $slug').run({ slug });
+      this.db.query('INSERT INTO tenant_aliases (slug, tenant_id, created_at) VALUES ($old, $id, $now)').run({ old: tenant.slug, id, now: Date.now() });
+      this.db.query('UPDATE tenants SET slug = $slug WHERE id = $id').run({ slug, id });
+      this.db.query('UPDATE signups SET tenant_slug = $slug WHERE tenant_slug = $old').run({ slug, old: tenant.slug });
+      this.db.query('UPDATE renewals SET slug = $slug WHERE slug = $old').run({ slug, old: tenant.slug });
+      return this.findById(id)!;
+    });
   }
 
   findById(id: string): Tenant | null {
@@ -456,7 +492,7 @@ export class ControlStore {
 
   /** Whether a slug is free: no workspace, and no open checkout from another browser holds it. */
   slugAvailable(slug: string, browserHash: string | null, now = Date.now()): boolean {
-    if (this.find(slug)) return false;
+    if (this.find(slug) || this.aliasOf(slug)) return false;
     const held = this.db
       .query<{ n: number }, { slug: string; now: number; browserHash: string }>(
         'SELECT COUNT(*) AS n FROM signups WHERE slug = $slug AND expires_at > $now AND tenant_slug IS NULL AND browser_hash != $browserHash',
