@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import type { GithubApp } from './github';
 import type { MailConfig } from './mail';
 
 export interface Config {
@@ -28,7 +29,7 @@ export interface Config {
    */
   trustedSignIn?: { key: string; startUrl: string; label: string } | null;
   /** "Sign in with GitHub" through this server's own GitHub OAuth app (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`). */
-  github?: { clientId: string; clientSecret: string; apiUrl?: string; webUrl?: string } | null;
+  github?: GithubApp | null;
 }
 
 export interface Limits {
@@ -78,5 +79,17 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     mail: mailConfig(env),
     mailLog: env.MAIL_LOG === '1',
     notifyQuietMs: seconds('NOTIFY_QUIET_SECONDS', env.NOTIFY_QUIET_SECONDS, 60) * 1000,
+    github: githubConfig(env),
+  };
+}
+
+function githubConfig(env: Record<string, string | undefined>): GithubApp | null {
+  if (!!env.GITHUB_CLIENT_ID !== !!env.GITHUB_CLIENT_SECRET) throw new Error('Set both GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET, or neither.');
+  if (!env.GITHUB_CLIENT_ID) return null;
+  return {
+    clientId: env.GITHUB_CLIENT_ID,
+    clientSecret: env.GITHUB_CLIENT_SECRET!,
+    ...(env.GITHUB_WEB_URL && { webUrl: new URL(env.GITHUB_WEB_URL).origin }),
+    ...(env.GITHUB_API_URL && { apiUrl: new URL(env.GITHUB_API_URL).origin }),
   };
 }

@@ -5,7 +5,8 @@ import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { csrf } from 'hono/csrf';
 import type { Child } from 'hono/jsx';
-import { verifyAssertion, type Identity } from './assertion';
+import { confirmedEmails, verifyAssertion, type Identity } from './assertion';
+import { githubAuthorizeUrl, githubIdentity } from './github';
 import type { Config, Limits } from './config';
 import { hashPassword, randomToken, verifyPassword } from './crypto';
 import type { Mailer } from './mail';
@@ -161,22 +162,24 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
    * an invite: joins with it (the invite is the permission; the invited address stays the account's email).
    */
   const completeExternalSignIn = async (c: Context<Env>, identity: Identity, next: string) => {
+    const confirmed = confirmedEmails(identity);
     const current = c.get('user');
     if (current) {
       if (identity.githubId && !repo.linkGithub(current.id, identity.githubId, identity.githubLogin ?? null)) {
         return renderAdmin(c, { error: 'That GitHub account belongs to another account here.' }, 400);
       }
-      if (identity.emailVerified && identity.email === current.email.toLowerCase()) repo.markEmailVerified(current.id);
+      if (confirmed.includes(current.email.toLowerCase())) repo.markEmailVerified(current.id);
       return c.redirect(safeNext(next));
     }
     let user = identity.githubId ? repo.findActiveUserByGithub(identity.githubId) : null;
-    if (!user && identity.email && identity.emailVerified) {
-      const byEmail = repo.findActiveUserByEmail(identity.email);
+    for (const email of confirmed) {
+      if (user) break;
+      const byEmail = repo.findActiveUserByEmail(email);
       if (byEmail?.emailVerified) user = byEmail;
     }
     if (user) {
       if (identity.githubId && !user.githubId) repo.linkGithub(user.id, identity.githubId, identity.githubLogin ?? null);
-      if (identity.emailVerified && identity.email === user.email.toLowerCase()) repo.markEmailVerified(user.id);
+      if (confirmed.includes(user.email.toLowerCase())) repo.markEmailVerified(user.id);
       signIn(c, user);
       return c.redirect(safeNext(next));
     }
@@ -190,7 +193,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
         email,
         name: identity.name || identity.githubLogin || email.split('@')[0]!,
         passwordHash: '',
-        emailVerified: !!identity.emailVerified && identity.email === email.toLowerCase(),
+        emailVerified: confirmed.includes(email.toLowerCase()),
         githubId: identity.githubId ?? null,
         githubLogin: identity.githubLogin ?? null,
       });
@@ -217,6 +220,33 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
       return c.html(<Message title="Sign-in link expired">This sign-in link has expired or was used already. Go back and try again.</Message>, 400);
     }
     return completeExternalSignIn(c, verified.identity, c.req.query('next') ?? '/admin');
+  });
+
+  // This server's own GitHub app (self-hosting). The state cookie ties the callback to this browser.
+  const GITHUB_STATE = 'openparley_github';
+  web.get('/auth/github', (c) => {
+    if (!config.github) return c.notFound();
+    const state = randomToken(16);
+    setCookie(c, GITHUB_STATE, `${state}|${safeNext(c.req.query('next'))}`, { httpOnly: true, secure, sameSite: 'Lax', path: '/auth/github', maxAge: 600 });
+    return c.redirect(githubAuthorizeUrl(config.github, `${config.publicUrl}/auth/github/callback`, state));
+  });
+
+  web.get('/auth/github/callback', async (c) => {
+    if (!config.github) return c.notFound();
+    const [state, next = '/admin'] = (getCookie(c, GITHUB_STATE) ?? '').split('|');
+    deleteCookie(c, GITHUB_STATE, { path: '/auth/github' });
+    const code = c.req.query('code');
+    if (!state || !code || c.req.query('state') !== state) {
+      return c.html(<Message title="Sign-in expired">That GitHub sign-in didn't come from this browser, or took too long. Try again.</Message>, 400);
+    }
+    let identity: Identity;
+    try {
+      identity = await githubIdentity(config.github, code, `${config.publicUrl}/auth/github/callback`);
+    } catch (error) {
+      console.error('GitHub sign-in failed:', error);
+      return c.html(<Message title="GitHub sign-in failed">GitHub didn't confirm who you are. Try again in a moment.</Message>, 502);
+    }
+    return completeExternalSignIn(c, identity, next);
   });
 
   // --- confirming an email address -----------------------------------------

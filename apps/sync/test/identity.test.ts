@@ -1,4 +1,6 @@
-import { describe, expect, test } from 'bun:test';
+import { afterAll, describe, expect, test } from 'bun:test';
+import { startFakeGithub } from '../dev/fake-github';
+import { loadConfig } from '../src/config';
 import { signAssertion, verifyAssertion, type Identity } from '../src/assertion';
 import type { Mail } from '../src/mail';
 import { harness, PUBLIC_URL, SETUP_TOKEN } from './harness';
@@ -159,5 +161,53 @@ describe('member changes', () => {
     repo.setRole(mia.id, 'admin');
     repo.removeUser(mia.id);
     expect(changes()).toBe(afterSetup + 3);
+  });
+});
+
+describe('Sign in with GitHub (this server’s own GitHub app)', () => {
+  const github = startFakeGithub();
+  afterAll(() => github.stop(true));
+  const app = { clientId: 'client', clientSecret: 'secret', webUrl: github.url.origin, apiUrl: github.url.origin };
+
+  /** Runs the redirect dance as `login`, in browser `b`. */
+  async function viaGithub(b: ReturnType<ReturnType<typeof harness>['browser']>, login: string, next = '/admin') {
+    const start = await b.request(`/auth/github?next=${encodeURIComponent(next)}`);
+    const authorize = new URL(start.headers.get('location')!);
+    expect(authorize.origin).toBe(github.url.origin);
+    authorize.searchParams.set('login', login);
+    const callback = new URL((await fetch(authorize, { redirect: 'manual' })).headers.get('location')!);
+    return b.request(callback.pathname + callback.search);
+  }
+
+  test('a confirmed GitHub email signs in the account with that confirmed email, and links GitHub', async () => {
+    const { repo, browser } = harness({ config: { github: app } });
+    await browser().post('/setup', { token: SETUP_TOKEN, name: 'Olivia', email: 'olivia@acme.test', password: 'correct horse battery' });
+    expect(await (await browser().request('/login')).text()).toContain('/auth/github?next=%2Fadmin');
+    // Unconfirmed address: no match.
+    expect((await viaGithub(browser(), 'olivia-dev')).status).toBe(403);
+    repo.markEmailVerified(repo.findActiveUserByEmail('olivia@acme.test')!.id);
+    const res = await viaGithub(browser(), 'olivia-dev');
+    expect(res.headers.get('location')).toBe('/admin');
+    expect(repo.findActiveUserByGithub('1001')).toMatchObject({ email: 'olivia@acme.test', githubLogin: 'olivia-dev' });
+  });
+
+  test('connecting GitHub while signed in confirms a matching email', async () => {
+    const { repo, browser } = harness({ config: { github: app } });
+    const b = browser();
+    await b.post('/setup', { token: SETUP_TOKEN, name: 'Mia', email: 'mia@acme.test', password: 'correct horse battery' });
+    await viaGithub(b, 'mia-dev');
+    expect(repo.findActiveUserByEmail('mia@acme.test')).toMatchObject({ githubId: '1002', emailVerified: true });
+  });
+
+  test('a callback without this browser’s state is refused', async () => {
+    const { browser } = harness({ config: { github: app } });
+    const b = browser();
+    await b.request('/auth/github');
+    expect((await browser().request('/auth/github/callback?code=x&state=y')).status).toBe(400);
+  });
+
+  test('both GitHub settings or neither', () => {
+    expect(() => loadConfig({ GITHUB_CLIENT_ID: 'x' })).toThrow('GITHUB_CLIENT_SECRET');
+    expect(loadConfig({ GITHUB_CLIENT_ID: 'x', GITHUB_CLIENT_SECRET: 'y' }).github).toMatchObject({ clientId: 'x' });
   });
 });

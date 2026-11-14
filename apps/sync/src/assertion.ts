@@ -11,7 +11,15 @@ export interface Identity {
   githubLogin?: string;
   email?: string;
   emailVerified?: boolean;
+  /** Every address the identity provider verified (GitHub lists several); `email` is the main one. */
+  verifiedEmails?: string[];
   name?: string;
+}
+
+/** The addresses an identity proves someone reads. */
+export function confirmedEmails(identity: Identity): string[] {
+  if (identity.verifiedEmails) return identity.verifiedEmails;
+  return identity.email && identity.emailVerified ? [identity.email] : [];
 }
 
 interface Claims extends Identity {
@@ -49,6 +57,7 @@ export function verifyAssertion(key: string, audience: string, token: string, no
     githubLogin: str(claims.githubLogin),
     email: str(claims.email)?.toLowerCase(),
     emailVerified: claims.emailVerified === true,
+    verifiedEmails: Array.isArray(claims.verifiedEmails) ? claims.verifiedEmails.slice(0, 20).map(str).filter((e): e is string => !!e).map((e) => e.toLowerCase()) : undefined,
     name: str(claims.name),
   };
   return { identity, nonce: claims.nonce, exp: claims.exp };

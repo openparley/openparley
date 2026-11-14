@@ -27,14 +27,18 @@ export function harness(
 
   /** A browser-like client that keeps its cookie and sends same-origin form posts. */
   function browser() {
-    let cookie = '';
+    const jar = new Map<string, string>();
     const request = async (path: string, init: RequestInit = {}) => {
       const headers = new Headers(init.headers);
-      if (cookie) headers.set('cookie', cookie);
+      if (jar.size) headers.set('cookie', [...jar].map(([name, value]) => `${name}=${value}`).join('; '));
       if (init.method === 'POST' && !headers.has('origin')) headers.set('origin', PUBLIC_URL);
       const res = await app.request(`${PUBLIC_URL}${path}`, { ...init, headers, redirect: 'manual' });
-      const set = res.headers.get('set-cookie');
-      if (set) cookie = set.includes('Max-Age=0') ? '' : set.split(';')[0]!;
+      for (const set of res.headers.getSetCookie()) {
+        const [pair] = set.split(';');
+        const [name, value = ''] = pair!.split('=');
+        if (set.includes('Max-Age=0') || !value) jar.delete(name!);
+        else jar.set(name!, value);
+      }
       return res;
     };
     const post = (path: string, fields: Record<string, string>, headers: Record<string, string> = {}) =>
