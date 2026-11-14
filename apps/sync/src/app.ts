@@ -24,10 +24,15 @@ export interface AppOptions {
   channels?: Channel[];
   /** The notifier's clock (tests). */
   now?: () => number;
+  /** An address the host already confirmed (e.g. at sign-up); an owner who sets up with it starts confirmed. */
+  verifiedOwnerEmail?: string | null;
+  /** Called when members change (joined, removed, role, confirmed email, GitHub), for hosts that mirror who belongs where. */
+  onMembersChanged?: () => void;
 }
 
-export function createApp({ db, config, setupToken, mailer = config.mail ? resendMailer(config.mail) : config.mailLog ? logMailer : null, channels, now }: AppOptions) {
+export function createApp({ db, config, setupToken, mailer = config.mail ? resendMailer(config.mail) : config.mailLog ? logMailer : null, channels, now, verifiedOwnerEmail = null, onMembersChanged }: AppOptions) {
   const repo = new Repo(db);
+  repo.onMembersChanged = onMembersChanged ?? null;
   const app = new Hono();
   const notifier = new Notifier({
     repo,
@@ -102,7 +107,7 @@ export function createApp({ db, config, setupToken, mailer = config.mail ? resen
   app.route('/mcp', mcpRoutes(repo, config, notifier));
   // Outside the web routes' CSRF check: mail clients post one-click unsubscribes from anywhere; the token is the credential.
   app.route('/unsubscribe', unsubscribeRoutes(repo));
-  app.route('/', webRoutes({ repo, config, setupToken, clientIp, mailer, notifier, authorize: authorizeRoutes({ repo, config }) }));
+  app.route('/', webRoutes({ repo, config, setupToken, clientIp, mailer, notifier, verifiedOwnerEmail, authorize: authorizeRoutes({ repo, config }) }));
 
   app.onError((error, c) => {
     if (error instanceof HTTPException) return error.getResponse();

@@ -1,4 +1,4 @@
-import { createApp } from './app';
+import { createApp, type AppOptions } from './app';
 import type { Mailer } from './mail';
 import type { Config } from './config';
 import { openDatabase } from './db';
@@ -14,9 +14,11 @@ export interface Instance {
 }
 
 /** One organization's server: its database (migrated) plus the HTTP app on top of it. */
-export function openInstance(options: { config: Config; setupToken: string; mailer?: Mailer | null }): Instance {
+export function openInstance(
+  options: { config: Config; setupToken: string; mailer?: Mailer | null } & Pick<AppOptions, 'verifiedOwnerEmail' | 'onMembersChanged'>,
+): Instance {
   const db = openDatabase(options.config.databasePath);
-  const { app, repo, notifier } = createApp({ db, config: options.config, setupToken: options.setupToken, mailer: options.mailer });
+  const { app, repo, notifier } = createApp({ ...options, db });
   repo.deleteExpiredSessions();
   notifier.start();
   return {

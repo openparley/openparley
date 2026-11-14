@@ -153,6 +153,22 @@ const MIGRATIONS = [
   ALTER TABLE agent_tokens ADD COLUMN previous_response TEXT;
   CREATE INDEX agent_tokens_previous_refresh ON agent_tokens(previous_refresh_hash);
   `,
+  `
+  ALTER TABLE users ADD COLUMN email_verified_at INTEGER;
+  ALTER TABLE users ADD COLUMN github_id TEXT;
+  ALTER TABLE users ADD COLUMN github_login TEXT;
+  CREATE UNIQUE INDEX users_github ON users(github_id);
+  CREATE TABLE email_confirmations (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL COLLATE NOCASE,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE TABLE used_assertions (
+    nonce TEXT PRIMARY KEY,
+    expires_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 export function openDatabase(path: string): Database {

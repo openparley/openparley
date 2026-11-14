@@ -5,6 +5,7 @@ import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { csrf } from 'hono/csrf';
 import type { Child } from 'hono/jsx';
+import { verifyAssertion, type Identity } from './assertion';
 import type { Config, Limits } from './config';
 import { hashPassword, randomToken, verifyPassword } from './crypto';
 import type { Mailer } from './mail';
@@ -44,14 +45,26 @@ export interface WebOptions {
   mailer?: Mailer | null;
   /** For the notification settings; without it the page says notifications are off. */
   notifier?: Notifier;
+  /** An address whoever provisioned this server already confirmed; an owner who sets up with it starts confirmed. */
+  verifiedOwnerEmail?: string | null;
 }
 
-export function webRoutes({ repo, config, setupToken, clientIp, authorize, mailer = null, notifier }: WebOptions): Hono<Env> {
+/** The "Continue with GitHub" button: this server's own GitHub app, or the trusted front door's sign-in. */
+export function externalSignIn(config: Config): { label: string; url: (next: string) => string } | null {
+  if (config.github) return { label: 'Continue with GitHub', url: (next) => `/auth/github?${new URLSearchParams({ next })}` };
+  const door = config.trustedSignIn;
+  if (door) return { label: door.label, url: (next) => `${door.startUrl}${door.startUrl.includes('?') ? '&' : '?'}${new URLSearchParams({ next })}` };
+  return null;
+}
+
+export function webRoutes({ repo, config, setupToken, clientIp, authorize, mailer = null, notifier, verifiedOwnerEmail = null }: WebOptions): Hono<Env> {
   const web = new Hono<Env>();
   const limiter = new RateLimiter(10, 15 * 60 * 1000);
   // Invite emails go to other people's inboxes and count against the mail quota.
   const inviteMail = new RateLimiter(30, 60 * 60 * 1000);
   const secure = config.publicUrl.startsWith('https://');
+  const external = externalSignIn(config);
+  const confirmMail = new RateLimiter(3, 60 * 60 * 1000);
 
   web.use('*', csrf({ origin: new URL(config.publicUrl).origin }));
   web.use('*', async (c, next) => {
@@ -105,7 +118,8 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     const values = { name: String(form.name ?? ''), email: String(form.email ?? '') };
     const account = await parseAccount(form);
     if ('error' in account) return c.html(<SetupPage privacyUrl={config.privacyUrl} token={setupToken} error={account.error} values={values} />, 400);
-    const user = repo.createUser({ ...account, role: 'owner' });
+    const confirmed = !!verifiedOwnerEmail && verifiedOwnerEmail.toLowerCase() === account.email.toLowerCase();
+    const user = repo.createUser({ ...account, role: 'owner', emailVerified: confirmed });
     signIn(c, user);
     return c.redirect('/admin');
   });
@@ -116,7 +130,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     if (!repo.hasUsers()) return c.redirect('/setup');
     const next = safeNext(c.req.query('next'));
     if (c.get('user')) return c.redirect(next);
-    return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} />);
+    return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} external={external} />);
   });
 
   web.post('/login', async (c) => {
@@ -125,17 +139,134 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     const next = safeNext(String(form.next ?? ''));
     const key = `${clientIp(c)}|${email}`;
     if (limiter.blocked(key)) {
-      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} error="Too many attempts. Wait a few minutes and try again." />, 429);
+      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} external={external} error="Too many attempts. Wait a few minutes and try again." />, 429);
     }
     const user = repo.findActiveUserByEmail(email);
-    const valid = await verifyPassword(String(form.password ?? ''), user?.passwordHash ?? DUMMY_HASH);
-    if (!user || !valid) {
+    // Accounts without a password (GitHub only) never match one.
+    const valid = await verifyPassword(String(form.password ?? ''), user?.passwordHash || DUMMY_HASH);
+    if (!user || !user.passwordHash || !valid) {
       limiter.fail(key);
-      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} error="That email and password don't match." />, 401);
+      return c.html(<LoginPage privacyUrl={config.privacyUrl} next={next} email={email} external={external} error="That email and password don't match." />, 401);
     }
     limiter.reset(key);
     signIn(c, user);
     return c.redirect(next);
+  });
+
+  // --- signing in from elsewhere (GitHub, a trusted front door) ------------
+
+  /**
+   * Signs in whoever `identity` is: the account with that GitHub id, else the one with that email when
+   * both sides confirmed it. Signed in already: links the GitHub account to you. No account, but `next` is
+   * an invite: joins with it (the invite is the permission; the invited address stays the account's email).
+   */
+  const completeExternalSignIn = async (c: Context<Env>, identity: Identity, next: string) => {
+    const current = c.get('user');
+    if (current) {
+      if (identity.githubId && !repo.linkGithub(current.id, identity.githubId, identity.githubLogin ?? null)) {
+        return renderAdmin(c, { error: 'That GitHub account belongs to another account here.' }, 400);
+      }
+      if (identity.emailVerified && identity.email === current.email.toLowerCase()) repo.markEmailVerified(current.id);
+      return c.redirect(safeNext(next));
+    }
+    let user = identity.githubId ? repo.findActiveUserByGithub(identity.githubId) : null;
+    if (!user && identity.email && identity.emailVerified) {
+      const byEmail = repo.findActiveUserByEmail(identity.email);
+      if (byEmail?.emailVerified) user = byEmail;
+    }
+    if (user) {
+      if (identity.githubId && !user.githubId) repo.linkGithub(user.id, identity.githubId, identity.githubLogin ?? null);
+      if (identity.emailVerified && identity.email === user.email.toLowerCase()) repo.markEmailVerified(user.id);
+      signIn(c, user);
+      return c.redirect(safeNext(next));
+    }
+    const inviteToken = /^\/invite\/([A-Za-z0-9_-]+)$/.exec(next)?.[1];
+    const invite = inviteToken ? repo.findUsableInvite(inviteToken) : null;
+    if (invite && (identity.email || invite.email)) {
+      if (membersFull()) return c.html(<Message title="No seats left">This OpenParley server is full. Ask an admin to make room, then use this link again.</Message>, 403);
+      const email = invite.email ?? identity.email!;
+      if (repo.emailTaken(email)) return c.html(<Message title="Account exists">An account with {email} already exists here. Sign in to it instead.</Message>, 409);
+      const joined = repo.acceptInvite(inviteToken!, {
+        email,
+        name: identity.name || identity.githubLogin || email.split('@')[0]!,
+        passwordHash: '',
+        emailVerified: !!identity.emailVerified && identity.email === email.toLowerCase(),
+        githubId: identity.githubId ?? null,
+        githubLogin: identity.githubLogin ?? null,
+      });
+      if (joined) {
+        signIn(c, joined);
+        return c.redirect('/admin?welcome=1');
+      }
+    }
+    const who = identity.githubLogin ? `GitHub account ${identity.githubLogin}` : (identity.email ?? 'that account');
+    return c.html(
+      <Message title="No account here">
+        There's no account for {who} on this server{identity.githubLogin ? ' yet' : ''}. Ask an admin for an invite link, or sign in with your email and
+        password and connect GitHub on the admin page.
+      </Message>,
+      403,
+    );
+  };
+
+  web.get('/auth/handoff', async (c) => {
+    const door = config.trustedSignIn;
+    if (!door) return c.notFound();
+    const verified = verifyAssertion(door.key, config.publicUrl, c.req.query('token') ?? '');
+    if (!verified || !repo.useAssertion(verified.nonce, verified.exp)) {
+      return c.html(<Message title="Sign-in link expired">This sign-in link has expired or was used already. Go back and try again.</Message>, 400);
+    }
+    return completeExternalSignIn(c, verified.identity, c.req.query('next') ?? '/admin');
+  });
+
+  // --- confirming an email address -----------------------------------------
+
+  web.post('/admin/email-confirmation', async (c) => {
+    const denied = requireUser(c);
+    if (denied) return denied;
+    const user = c.get('user')!;
+    if (user.emailVerified) return c.redirect('/admin');
+    if (!mailer || confirmMail.blocked(user.id)) return renderAdmin(c, { error: "We couldn't send the confirmation email. Try again later." }, 400);
+    confirmMail.fail(user.id);
+    const link = `${config.publicUrl}/confirm-email/${repo.createEmailConfirmation(user.id, user.email)}`;
+    try {
+      await mailer.send({
+        to: user.email,
+        subject: 'Confirm your email for OpenParley',
+        text: ['To confirm this is your address on OpenParley, open:', link, '', "The link works for 24 hours. If you didn't ask for this, ignore this email."].join('\n'),
+      });
+    } catch (error) {
+      console.error('Sending an email confirmation failed:', error);
+      return renderAdmin(c, { error: "We couldn't send the confirmation email. Try again later." }, 400);
+    }
+    return renderAdmin(c, { confirmation: user.email });
+  });
+
+  // Opening the link changes nothing (mail scanners prefetch links); the button confirms.
+  web.get('/confirm-email/:token', (c) =>
+    c.html(
+      <Page title="Confirm your email">
+        <h1>Confirm your email</h1>
+        <form method="post">
+          <button type="submit">Confirm my email</button>
+        </form>
+      </Page>,
+    ),
+  );
+
+  web.post('/confirm-email/:token', (c) => {
+    const user = repo.confirmEmail(c.req.param('token'));
+    if (!user) return c.html(<Message title="Link expired">This confirmation link has expired or was used already. Ask for a new one on the admin page.</Message>, 404);
+    return c.html(<Message title="Email confirmed">{user.email} is confirmed. You can close this page.</Message>);
+  });
+
+  web.post('/admin/github/disconnect', (c) => {
+    const denied = requireUser(c);
+    if (denied) return denied;
+    const user = c.get('user')!;
+    if (!user.passwordHash) return renderAdmin(c, { error: "GitHub is your only way to sign in here, so it can't be disconnected." }, 400);
+    repo.unlinkGithub(user.id);
+    return c.redirect('/admin');
   });
 
   web.post('/logout', (c) => {
@@ -209,7 +340,14 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
   web.get('/invite/:token', (c) => {
     const invite = repo.findUsableInvite(c.req.param('token'));
     if (!invite) return c.html(<Message title="Invite expired">This invite link is invalid, already used, or expired. Ask for a new one.</Message>, 404);
-    return c.html(<InvitePage privacyUrl={config.privacyUrl} token={c.req.param('token')} values={invite.email ? { name: '', email: invite.email } : undefined} />);
+    return c.html(
+      <InvitePage
+        privacyUrl={config.privacyUrl}
+        token={c.req.param('token')}
+        values={invite.email ? { name: '', email: invite.email } : undefined}
+        external={external}
+      />,
+    );
   });
 
   web.post('/invite/:token', async (c) => {
@@ -223,7 +361,7 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
     const form = await c.req.parseBody();
     const values = { name: String(form.name ?? ''), email: String(form.email ?? '') };
     const account = await parseAccount(form);
-    if ('error' in account) return c.html(<InvitePage privacyUrl={config.privacyUrl} token={token} error={account.error} values={values} />, 400);
+    if ('error' in account) return c.html(<InvitePage privacyUrl={config.privacyUrl} token={token} error={account.error} values={values} external={external} />, 400);
     if (membersFull()) {
       return c.html(<Message title="No seats left">This OpenParley server is full. Ask an admin to make room, then use this link again.</Message>, 403);
     }
@@ -278,6 +416,8 @@ export function webRoutes({ repo, config, setupToken, clientIp, authorize, maile
         }}
         flash={flash}
         nonce={c.get('nonce')}
+        canConfirmEmail={!!mailer}
+        external={external}
       />,
       status,
     );
@@ -520,6 +660,8 @@ button.secondary{background:#fff;color:#14181f;border-color:#cfc3a8}button.dange
 fieldset{border:0;padding:0;margin:12px 0 0}legend{font-weight:600;padding:0;margin:0 0 4px}fieldset .check{display:block;margin:4px 0}fieldset .check input{margin:0 6px 0 0}
 summary{cursor:pointer;margin:12px 0 0;color:#1f5a4c}details pre{margin:8px 0 0;word-break:normal;overflow-wrap:anywhere}
 header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}table{width:100%;border-collapse:collapse}td{padding:8px 4px;border-top:1px solid #e7dec9;vertical-align:middle}
+a.button{display:inline-block;font-weight:700;padding:8px 16px;border-radius:999px;border:1px solid #2c7f6b;background:#2c7f6b;color:#fff;text-decoration:none}a.button.github{background:#14181f;border-color:#14181f}
+.notice{background:#f3ecdc;border:1px solid #e7dec9;padding:10px 12px;border-radius:12px;margin:0 0 12px}button.link{background:none;border:0;padding:0;margin:0;color:#1f5a4c;font-weight:400;text-decoration:underline}
 `;
 
 const COPY_SCRIPT = `document.addEventListener('change', (event) => {
@@ -625,7 +767,7 @@ function PrivacyLine({ privacyUrl }: { privacyUrl: string | null }) {
   ) : null;
 }
 
-type AccountPageProps = { privacyUrl: string | null; token: string; error?: string; values?: { name: string; email: string } };
+type AccountPageProps = { privacyUrl: string | null; token: string; error?: string; values?: { name: string; email: string }; external?: External };
 
 function SetupPage({ privacyUrl, token, error, values }: AccountPageProps) {
   return (
@@ -643,11 +785,24 @@ function SetupPage({ privacyUrl, token, error, values }: AccountPageProps) {
   );
 }
 
-function LoginPage({ privacyUrl, next, email, error }: { privacyUrl: string | null; next: string; email?: string; error?: string }) {
+type External = { label: string; url: (next: string) => string } | null;
+
+function ExternalButton({ external, next, label }: { external: External; next: string; label?: string }) {
+  return external ? (
+    <p>
+      <a class="button github" href={external.url(next)}>
+        {label ?? external.label}
+      </a>
+    </p>
+  ) : null;
+}
+
+function LoginPage({ privacyUrl, next, email, error, external }: { privacyUrl: string | null; next: string; email?: string; error?: string; external: External }) {
   return (
     <Page title="Sign in">
       <h1>Sign in to OpenParley</h1>
       <ErrorBox error={error} />
+      <ExternalButton external={external} next={next} />
       <form method="post" action="/login" class="box">
         <input type="hidden" name="next" value={next} />
         <label for="email">Email</label>
@@ -659,6 +814,46 @@ function LoginPage({ privacyUrl, next, email, error }: { privacyUrl: string | nu
       <p class="muted">No account? Ask an admin of this server for an invite link.</p>
       <PrivacyLine privacyUrl={privacyUrl} />
     </Page>
+  );
+}
+
+/** How you sign in here. Shown only where there's a choice (GitHub available, or already linked). */
+function Account({ user, external }: { user: User; external: External }) {
+  if (!external && !user.githubId) return null;
+  return (
+    <>
+      <h2>Your account</h2>
+      <section>
+        <table>
+          <tr>
+            <td>
+              GitHub
+              <br />
+              <span class="muted">{user.githubId ? (user.githubLogin ?? 'connected') : 'not connected'}</span>
+            </td>
+            <td style="text-align:right">
+              {user.githubId ? (
+                user.passwordHash ? (
+                  <form method="post" action="/admin/github/disconnect" class="inline">
+                    <button type="submit" class="secondary">
+                      Disconnect
+                    </button>
+                  </form>
+                ) : (
+                  <span class="muted">your only way to sign in</span>
+                )
+              ) : (
+                external && (
+                  <a class="button" href={external.url('/admin')}>
+                    Connect GitHub
+                  </a>
+                )
+              )}
+            </td>
+          </tr>
+        </table>
+      </section>
+    </>
   );
 }
 
@@ -712,11 +907,13 @@ function inviteEmail({ to, inviter, link, projects }: { to: string; inviter: Use
   };
 }
 
-function InvitePage({ privacyUrl, token, error, values }: AccountPageProps) {
+function InvitePage({ privacyUrl, token, error, values, external = null }: AccountPageProps) {
   return (
     <Page title="Join OpenParley">
       <h1>Join your team on OpenParley</h1>
       <ErrorBox error={error} />
+      <ExternalButton external={external} next={`/invite/${token}`} label={external?.label.replace(/^Continue/, 'Join')} />
+      {external && <p class="muted">Or create a password:</p>}
       <form method="post" action={`/invite/${encodeURIComponent(token)}`} class="box">
         <AccountFields values={values} />
         <button type="submit">Create account</button>
@@ -731,7 +928,8 @@ type Flash =
   | { invite: string; to?: string; mail?: 'sent' | 'off' | 'failed' }
   | { agent: { name: string; token: string } }
   | { welcome: true }
-  | { saved: 'notifications' | 'handle' };
+  | { saved: 'notifications' | 'handle' }
+  | { confirmation: string };
 
 interface NotificationProps {
   settings: NotificationSettings;
@@ -841,8 +1039,10 @@ function AdminPage(props: {
   notifications: NotificationProps;
   flash?: Flash;
   nonce: string;
+  canConfirmEmail: boolean;
+  external: External;
 }) {
-  const { user, projects, members, invites, publicUrl, limits, limitsUrl, threadsCreated, agents, notifications, flash, nonce } = props;
+  const { user, projects, members, invites, publicUrl, limits, limitsUrl, threadsCreated, agents, notifications, flash, nonce, canConfirmEmail, external } = props;
   const admin = user.role !== 'member';
   return (
     <Page
@@ -892,7 +1092,21 @@ function AdminPage(props: {
           press C first) to start a thread on it.
         </div>
       )}
+      {flash && 'confirmation' in flash && (
+        <div class="ok" role="status">
+          We've sent a link to {flash.confirmation}. Open it to confirm your email; it works for 24 hours.
+        </div>
+      )}
+      {!user.emailVerified && canConfirmEmail && !(flash && 'confirmation' in flash) && (
+        <form method="post" action="/admin/email-confirmation" class="notice">
+          <strong>Confirm {user.email}</strong> so you can sign in with GitHub or from your OpenParley account.{' '}
+          <button type="submit" class="link">
+            Send the confirmation email
+          </button>
+        </form>
+      )}
       <Sites projects={projects} />
+      <Account user={user} external={external} />
       <Notifications user={user} projects={projects} {...notifications} saved={flash && 'saved' in flash ? flash.saved : null} />
       {!admin && <p class="muted">Admins manage projects and members on this page.</p>}
 

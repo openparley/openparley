@@ -1,6 +1,6 @@
 import type { Anchor } from '@openparley/protocol';
 import { createApp } from '../src/app';
-import { loadConfig } from '../src/config';
+import { loadConfig, type Config } from '../src/config';
 import { openDatabase } from '../src/db';
 import type { Mailer } from '../src/mail';
 
@@ -10,10 +10,20 @@ export const SETUP_TOKEN = 'setup-token';
 
 export const anchor: Anchor = { v: 1, selector: '#buy', path: 'body > button:nth-of-type(1)', tag: 'button', text: 'Buy', attrs: { id: 'buy' }, point: [0.5, 0.5] };
 
-export function harness(overrides: { overlayDir?: string; env?: Record<string, string>; mailer?: Mailer | null; now?: () => number } = {}) {
-  const { env, mailer = null, now, ...rest } = overrides;
-  const config = { ...loadConfig({ PUBLIC_URL, ...env }), overlayDir: '/nonexistent', ...rest };
-  const { app, repo, notifier } = createApp({ db: openDatabase(':memory:'), config, setupToken: SETUP_TOKEN, mailer, now });
+export function harness(
+  overrides: {
+    overlayDir?: string;
+    env?: Record<string, string>;
+    mailer?: Mailer | null;
+    now?: () => number;
+    config?: Partial<Config>;
+    verifiedOwnerEmail?: string;
+    onMembersChanged?: () => void;
+  } = {},
+) {
+  const { env, mailer = null, now, config: configOverrides, verifiedOwnerEmail, onMembersChanged, ...rest } = overrides;
+  const config = { ...loadConfig({ PUBLIC_URL, ...env }), overlayDir: '/nonexistent', ...rest, ...configOverrides };
+  const { app, repo, notifier } = createApp({ db: openDatabase(':memory:'), config, setupToken: SETUP_TOKEN, mailer, now, verifiedOwnerEmail, onMembersChanged });
 
   /** A browser-like client that keeps its cookie and sends same-origin form posts. */
   function browser() {

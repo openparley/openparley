@@ -22,6 +22,13 @@ export interface Config {
   mailLog?: boolean;
   /** Notifications about a thread go out once it has been quiet this long (batching a busy conversation). */
   notifyQuietMs: number;
+  /**
+   * A front door that signs people in for this server (OpenParley Cloud): its sign-in page is at
+   * `startUrl` (`next` is appended) and it comes back to `/auth/handoff` with an assertion signed with `key`.
+   */
+  trustedSignIn?: { key: string; startUrl: string; label: string } | null;
+  /** "Sign in with GitHub" through this server's own GitHub OAuth app (`GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`). */
+  github?: { clientId: string; clientSecret: string; apiUrl?: string; webUrl?: string } | null;
 }
 
 export interface Limits {

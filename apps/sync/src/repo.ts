@@ -10,8 +10,13 @@ export interface User {
   /** Mention name, `@handle` in comments. Unique among everyone who ever had an account, so an old mention never points at someone new. */
   handle: string;
   role: Role;
+  /** Empty for accounts that only sign in through GitHub or a trusted front door. */
   passwordHash: string;
   createdAt: number;
+  /** Confirmed by a link to it, by GitHub, or by whoever provisioned the server. Only confirmed emails match accounts elsewhere. */
+  emailVerified: boolean;
+  githubId: string | null;
+  githubLogin: string | null;
 }
 
 export interface Project {
@@ -140,6 +145,9 @@ interface UserRow {
   role: Role;
   password_hash: string;
   created_at: number;
+  email_verified_at: number | null;
+  github_id: string | null;
+  github_login: string | null;
 }
 
 const toUser = (row: UserRow): User => ({
@@ -150,10 +158,28 @@ const toUser = (row: UserRow): User => ({
   role: row.role,
   passwordHash: row.password_hash,
   createdAt: row.created_at,
+  emailVerified: row.email_verified_at !== null,
+  githubId: row.github_id,
+  githubLogin: row.github_login,
 });
+
+export interface NewUser {
+  email: string;
+  name: string;
+  passwordHash: string;
+  role: Role;
+  emailVerified?: boolean;
+  githubId?: string | null;
+  githubLogin?: string | null;
+}
+
+export const EMAIL_CONFIRMATION_TTL = 24 * 60 * 60 * 1000;
 
 /** All persistence for one OpenParley instance (= one organization). */
 export class Repo {
+  /** Called after anything a host mirroring the member list cares about changes (who, role, email, GitHub). */
+  onMembersChanged: (() => void) | null = null;
+
   constructor(private readonly db: Database) {
     // Accounts from before mention names existed get one on first open.
     const missing = db.query<{ id: string; name: string }, []>('SELECT id, name FROM users WHERE handle IS NULL ORDER BY created_at').all();
@@ -166,7 +192,8 @@ export class Repo {
     return this.db.query('SELECT 1 FROM users LIMIT 1').get() !== null;
   }
 
-  createUser(input: { email: string; name: string; passwordHash: string; role: Role }): User {
+  createUser(input: NewUser): User {
+    const now = Date.now();
     const user: UserRow = {
       id: randomId(),
       email: input.email,
@@ -174,14 +201,85 @@ export class Repo {
       handle: this.freeHandle(input.name),
       role: input.role,
       password_hash: input.passwordHash,
-      created_at: Date.now(),
+      created_at: now,
+      email_verified_at: input.emailVerified ? now : null,
+      github_id: input.githubId ?? null,
+      github_login: input.githubLogin ?? null,
     };
     this.db
       .query(
-        'INSERT INTO users (id, email, name, handle, password_hash, role, created_at) VALUES ($id, $email, $name, $handle, $password_hash, $role, $created_at)',
+        `INSERT INTO users (id, email, name, handle, password_hash, role, created_at, email_verified_at, github_id, github_login)
+         VALUES ($id, $email, $name, $handle, $password_hash, $role, $created_at, $email_verified_at, $github_id, $github_login)`,
       )
       .run({ ...user });
+    this.membersChanged();
     return toUser(user);
+  }
+
+  private membersChanged(): void {
+    try {
+      this.onMembersChanged?.();
+    } catch (error) {
+      console.error('onMembersChanged failed:', error);
+    }
+  }
+
+  findActiveUserByGithub(githubId: string): User | null {
+    const row = this.db.query<UserRow, { githubId: string }>('SELECT * FROM users WHERE github_id = $githubId AND removed_at IS NULL').get({ githubId });
+    return row ? toUser(row) : null;
+  }
+
+  /** False when another account (also a removed one) has that GitHub account. */
+  linkGithub(userId: string, githubId: string, githubLogin: string | null): boolean {
+    const taken = this.db.query('SELECT 1 FROM users WHERE github_id = $githubId AND id != $userId').get({ githubId, userId });
+    if (taken) return false;
+    this.db.query('UPDATE users SET github_id = $githubId, github_login = $githubLogin WHERE id = $userId').run({ userId, githubId, githubLogin });
+    this.membersChanged();
+    return true;
+  }
+
+  unlinkGithub(userId: string): void {
+    this.db.query('UPDATE users SET github_id = NULL, github_login = NULL WHERE id = $userId').run({ userId });
+    this.membersChanged();
+  }
+
+  markEmailVerified(userId: string): void {
+    this.db.query('UPDATE users SET email_verified_at = $now WHERE id = $userId AND email_verified_at IS NULL').run({ userId, now: Date.now() });
+    this.membersChanged();
+  }
+
+  /** A link token proving the user reads `email`. Stored hashed; only the newest one per user works. */
+  createEmailConfirmation(userId: string, email: string): string {
+    const token = randomToken();
+    const now = Date.now();
+    this.db.transaction(() => {
+      this.db.query('DELETE FROM email_confirmations WHERE user_id = $userId OR expires_at <= $now').run({ userId, now });
+      this.db
+        .query('INSERT INTO email_confirmations (token_hash, user_id, email, expires_at) VALUES ($hash, $userId, $email, $expiresAt)')
+        .run({ hash: hashToken(token), userId, email, expiresAt: now + EMAIL_CONFIRMATION_TTL });
+    })();
+    return token;
+  }
+
+  /** Confirms the address the link was sent to, if it's still the account's address. */
+  confirmEmail(token: string): User | null {
+    const row = this.db
+      .query<{ user_id: string; email: string }, { hash: string; now: number }>(
+        'DELETE FROM email_confirmations WHERE token_hash = $hash AND expires_at > $now RETURNING user_id, email',
+      )
+      .get({ hash: hashToken(token), now: Date.now() });
+    if (!row) return null;
+    const user = this.findActiveUser(row.user_id);
+    if (!user || user.email.toLowerCase() !== row.email.toLowerCase()) return null;
+    this.markEmailVerified(user.id);
+    return this.findActiveUser(user.id);
+  }
+
+  /** Records a sign-in assertion's nonce. False if it was used before (a replayed link). */
+  useAssertion(nonce: string, expiresAt: number): boolean {
+    const now = Date.now();
+    this.db.query('DELETE FROM used_assertions WHERE expires_at <= $now').run({ now });
+    return this.db.query('INSERT INTO used_assertions (nonce, expires_at) VALUES ($nonce, $expiresAt) ON CONFLICT DO NOTHING').run({ nonce, expiresAt }).changes === 1;
   }
 
   findActiveUserByEmail(email: string): User | null {
@@ -231,6 +329,7 @@ export class Repo {
 
   setRole(userId: string, role: Exclude<Role, 'owner'>): void {
     this.db.query("UPDATE users SET role = $role WHERE id = $id AND role != 'owner'").run({ id: userId, role });
+    this.membersChanged();
   }
 
   /** Removed users keep their name on past comments but can no longer sign in. */
@@ -240,6 +339,7 @@ export class Repo {
       this.db.query('DELETE FROM sessions WHERE user_id = $id').run({ id: userId });
       this.db.query('DELETE FROM agent_tokens WHERE user_id = $id').run({ id: userId });
     })();
+    this.membersChanged();
   }
 
   // --- agent tokens ------------------------------------------------------
@@ -521,7 +621,7 @@ export class Repo {
   }
 
   /** Marks the invite used and creates the account atomically, so one link can't create two users. */
-  acceptInvite(token: string, input: { email: string; name: string; passwordHash: string }): User | null {
+  acceptInvite(token: string, input: Omit<NewUser, 'role'>): User | null {
     return this.db.transaction(() => {
       const invite = this.findUsableInvite(token);
       if (!invite) return null;
