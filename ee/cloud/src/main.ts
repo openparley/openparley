@@ -9,6 +9,9 @@ console.log(`OpenParley Cloud listening on ${server.url}`);
 console.log(`  control plane  ${urlFor(config, `cloud.${config.domain}`)}`);
 console.log(`  workspaces     ${urlFor(config, `<slug>.${config.domain}`)}  (${cloud.stats().workspaces} provisioned)`);
 console.log(`  sign-up        ${config.polar ? `open (Polar at ${config.polar.apiUrl})` : 'closed (set POLAR_* to open it)'}`);
+console.log(`  GitHub sign-in  ${config.github ? `on${config.github.webUrl ? ` (${config.github.webUrl})` : ''}` : 'off (set GITHUB_CLIENT_ID/SECRET)'}`);
+// Workspaces from before Cloud accounts: mirror who belongs where once, so they show up in people's lists.
+setTimeout(() => cloud.syncAllMembers(), 1000);
 if (config.polar && !config.mail) console.warn('  warning: no RESEND_API_KEY, so setup links are emailed to this log instead of to customers');
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

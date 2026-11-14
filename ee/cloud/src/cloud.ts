@@ -1,5 +1,7 @@
+import { createHmac } from 'node:crypto';
 import { join } from 'node:path';
-import { openInstance, type Instance } from '@openparley/sync';
+import { openInstance, signAssertion, type Instance } from '@openparley/sync';
+import { AccountStore, type Account } from './accounts';
 import { Billing } from './billing';
 import { controlPlane } from './control-plane';
 import { ControlStore, type NewTenant, type Tenant } from './control';
@@ -35,6 +37,7 @@ type Server = { requestIP(request: Request): { address: string; family: string; 
  */
 export class Cloud {
   readonly control: ControlStore;
+  readonly accounts: AccountStore;
   readonly billing: Billing;
   private readonly live = new Map<string, Open>();
   /** Shared with every workspace, so their invite emails go out the same way as Cloud's own. */
@@ -47,6 +50,7 @@ export class Cloud {
     deps: CloudDeps = {},
   ) {
     this.control = new ControlStore(config.dataDir);
+    this.accounts = new AccountStore(this.control.db);
     this.mailer = deps.mailer ?? (config.mail ? resendMailer(config.mail) : logMailer);
     this.billing = new Billing(this, config, this.mailer);
     const polar = config.polar ? new PolarClient(config.polar, deps.fetch) : null;
@@ -112,6 +116,11 @@ export class Cloud {
     return urlFor(this.config, `cloud.${this.config.domain}`);
   }
 
+  /** Sends an email the way workspaces send theirs (Resend, or the log in development). */
+  mail(mail: Parameters<Mailer['send']>[0]): Promise<void> {
+    return this.mailer.send(mail);
+  }
+
   /** A link for the billing contact to upgrade a free workspace. Send it only to the billing email. */
   renewalUrl(slug: string, ttlMs: number): string {
     return `${this.controlUrl()}/renew?token=${this.control.createRenewal(slug, ttlMs)}`;
@@ -124,6 +133,33 @@ export class Cloud {
 
   setupUrl(tenant: Tenant): string {
     return `${this.workspaceUrl(tenant.slug)}/setup?token=${tenant.setupToken}`;
+  }
+
+  /**
+   * A link that signs `account` in to the workspace at `next`: a single-use assertion valid for a minute,
+   * signed with a key only this workspace accepts. The workspace decides which of its users that is.
+   */
+  handoffUrl(tenant: Tenant, account: Account, next = '/admin'): string {
+    const token = signAssertion(this.handoffKey(tenant), this.workspaceUrl(tenant.slug), {
+      githubId: account.githubId ?? undefined,
+      githubLogin: account.githubLogin ?? undefined,
+      email: account.email,
+      emailVerified: true,
+      name: account.name ?? undefined,
+    });
+    return `${this.workspaceUrl(tenant.slug)}/auth/handoff?${new URLSearchParams({ token, next })}`;
+  }
+
+  private handoffKey(tenant: Tenant): string {
+    return createHmac('sha256', this.control.secret('handoff')).update(`handoff:${tenant.id}`).digest('base64url');
+  }
+
+  /** Mirrors member lists of workspaces that were never mirrored (once, after an upgrade). Opens them one by one. */
+  syncAllMembers(): void {
+    for (const id of this.accounts.unsyncedTenantIds()) {
+      const tenant = this.control.findById(id);
+      if (tenant && tenant.status === 'active') this.instanceFor(tenant);
+    }
   }
 
   stats(): CloudStats {
@@ -156,9 +192,12 @@ export class Cloud {
     if (cached) this.evict(tenant.id);
     if (this.live.size >= this.config.maxOpen) this.evict(this.live.keys().next().value!);
 
-    const instance = openInstance({
+    const github = this.config.github ?? null;
+    const instance: Instance = openInstance({
       setupToken: tenant.setupToken,
       mailer: this.mailer,
+      verifiedOwnerEmail: tenant.verifiedOwnerEmail,
+      onMembersChanged: () => this.accounts.syncMembers(tenant.id, instance.repo.listActiveUsers()),
       config: {
         port: this.config.port,
         databasePath: join(this.config.dataDir, 'tenants', tenant.dbFile),
@@ -170,8 +209,13 @@ export class Cloud {
         privacyUrl: this.config.siteUrl ? `${this.config.siteUrl}/privacy` : null,
         mail: this.config.mail,
         notifyQuietMs: this.config.notifyQuietMs,
+        // GitHub can't call back to every workspace, so its sign-in runs on the control plane, which hands off.
+        trustedSignIn: github
+          ? { key: this.handoffKey(tenant), startUrl: `${this.controlUrl()}/auth/github?workspace=${tenant.id}`, label: 'Continue with GitHub' }
+          : null,
       },
     });
+    this.accounts.syncMembers(tenant.id, instance.repo.listActiveUsers());
     this.live.set(tenant.id, { instance, limitsKey, lastUsed: Date.now() });
     return instance;
   }

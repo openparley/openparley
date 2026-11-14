@@ -28,6 +28,8 @@ export interface Tenant {
   suspendedAt: number | null;
   /** File name under `tenants/`: the slug for workspaces from before ids, the id since. */
   dbFile: string;
+  /** An address confirmed at sign-up; an owner who sets up with it starts with a confirmed email. */
+  verifiedOwnerEmail: string | null;
 }
 
 /** A sign-up between the form and the paid subscription. Reserves the slug while checkout is open. */
@@ -128,6 +130,44 @@ const MIGRATIONS = [
   UPDATE tenants SET id = lower(hex(randomblob(12))), db_file = slug || '.db';
   CREATE UNIQUE INDEX tenants_id ON tenants(id);
   `,
+  `
+  CREATE TABLE accounts (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    github_id TEXT UNIQUE,
+    github_login TEXT,
+    name TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE account_sessions (
+    token_hash TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE INDEX account_sessions_account ON account_sessions(account_id);
+  CREATE TABLE sign_in_links (
+    token_hash TEXT PRIMARY KEY,
+    email TEXT NOT NULL COLLATE NOCASE,
+    next TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+  );
+  CREATE TABLE memberships (
+    tenant_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    email TEXT COLLATE NOCASE,
+    github_id TEXT,
+    role TEXT NOT NULL,
+    PRIMARY KEY (tenant_id, user_id)
+  );
+  CREATE INDEX memberships_email ON memberships(email);
+  CREATE INDEX memberships_github ON memberships(github_id);
+  CREATE TABLE secrets (
+    name TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  ALTER TABLE tenants ADD COLUMN members_synced_at INTEGER;
+  ALTER TABLE tenants ADD COLUMN verified_owner_email TEXT;
+  `,
 ];
 
 interface Row {
@@ -146,6 +186,7 @@ interface Row {
   polar_subscription_id: string | null;
   suspended_at: number | null;
   db_file: string;
+  verified_owner_email: string | null;
 }
 
 const toTenant = (row: Row): Tenant => ({
@@ -164,6 +205,7 @@ const toTenant = (row: Row): Tenant => ({
   polarSubscriptionId: row.polar_subscription_id,
   suspendedAt: row.suspended_at,
   dbFile: row.db_file,
+  verifiedOwnerEmail: row.verified_owner_email,
 });
 
 interface SignupRow {
@@ -200,6 +242,7 @@ export interface NewTenant {
   billingEmail?: string | null;
   polarCustomerId?: string | null;
   polarSubscriptionId?: string | null;
+  verifiedOwnerEmail?: string | null;
 }
 
 export interface TenantPatch {
@@ -215,7 +258,8 @@ export interface TenantPatch {
 
 /** The control plane's own database: workspaces with their status, limits and billing links. */
 export class ControlStore {
-  private readonly db: Database;
+  /** Shared with `AccountStore`, which keeps its tables in the same file. */
+  readonly db: Database;
 
   constructor(dataDir: string) {
     mkdirSync(join(dataDir, 'tenants'), { recursive: true });
@@ -251,13 +295,14 @@ export class ControlStore {
       polar_subscription_id: input.polarSubscriptionId ?? null,
       suspended_at: null,
       db_file: `${id}.db`,
+      verified_owner_email: input.verifiedOwnerEmail ?? null,
     };
     this.db
       .query(
         `INSERT INTO tenants (id, slug, name, status, setup_token, max_members, max_projects, max_threads, created_at,
-           plan, billing_email, polar_customer_id, polar_subscription_id, suspended_at, db_file)
+           plan, billing_email, polar_customer_id, polar_subscription_id, suspended_at, db_file, verified_owner_email)
          VALUES ($id, $slug, $name, $status, $setup_token, $max_members, $max_projects, $max_threads, $created_at,
-           $plan, $billing_email, $polar_customer_id, $polar_subscription_id, $suspended_at, $db_file)`,
+           $plan, $billing_email, $polar_customer_id, $polar_subscription_id, $suspended_at, $db_file, $verified_owner_email)`,
       )
       .run({ ...row });
     return toTenant(row);
@@ -412,6 +457,12 @@ export class ControlStore {
       .query<{ slug: string }, { hash: string; now: number }>('SELECT slug FROM renewals WHERE token_hash = $hash AND expires_at > $now')
       .get({ hash: hashToken(token), now });
     return row?.slug ?? null;
+  }
+
+  /** A secret generated on first use and kept in control.db (e.g. the key behind sign-in hand-offs). */
+  secret(name: string): string {
+    this.db.query('INSERT INTO secrets (name, value) VALUES ($name, $value) ON CONFLICT DO NOTHING').run({ name, value: randomToken(32) });
+    return this.db.query<{ value: string }, { name: string }>('SELECT value FROM secrets WHERE name = $name').get({ name })!.value;
   }
 
   close(): void {

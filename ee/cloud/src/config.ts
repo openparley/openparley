@@ -12,7 +12,7 @@ export interface PolarConfig {
 }
 
 export type { MailConfig } from '@openparley/sync';
-import type { MailConfig } from '@openparley/sync';
+import { githubConfig, type GithubApp, type MailConfig } from '@openparley/sync';
 
 export interface CloudConfig {
   port: number;
@@ -38,6 +38,8 @@ export interface CloudConfig {
   siteUrl: string | null;
   /** Passed to every workspace: how long a thread must be quiet before its notifications go out. */
   notifyQuietMs: number;
+  /** Cloud's GitHub OAuth app (callback `cloud.<domain>/auth/github/callback`). Null: no GitHub sign-in. */
+  github?: GithubApp | null;
 }
 
 const POLAR_ENV = ['POLAR_ACCESS_TOKEN', 'POLAR_WEBHOOK_SECRET', 'POLAR_PRODUCT_TEAM'] as const;
@@ -83,6 +85,7 @@ export function loadCloudConfig(env: Record<string, string | undefined> = proces
     supportEmail: env.SUPPORT_EMAIL ?? null,
     siteUrl: env.SITE_URL ? new URL(env.SITE_URL).origin : null,
     notifyQuietMs: Number(env.NOTIFY_QUIET_SECONDS ?? 60) * 1000,
+    github: githubConfig(env),
   };
 }
 
