@@ -18,8 +18,8 @@
     "preact": "^10.27.0"
   },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^20.0.0",
-    "@openparley/protocol": "workspace:*",
-    "@openparley/brand": "workspace:*"
+    "@happy-dom/global-registrator": "^21.0.4",
+    "@openparley/brand": "workspace:*",
+    "@openparley/protocol": "workspace:*"
   }
 }
